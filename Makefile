@@ -1,6 +1,6 @@
 
 
-build: draft-ietf-jmap-filenode.txt draft-ietf-jmap-filenode.html draft-ietf-jmap-filenode.xml
+build: draft-gondwana-jmap-filenode.txt draft-gondwana-jmap-filenode.html draft-gondwana-jmap-filenode.xml
 
 %.xml: %.mdown
 	mmark $< > $@

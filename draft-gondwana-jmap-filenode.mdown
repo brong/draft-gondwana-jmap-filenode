@@ -1,0 +1,425 @@
+%%%
+    title = "JMAP File Storage extension"
+    abbrev = "JMAP FileNode"
+    category = "std"
+    docName = "draft-gondwana-jmap-filenode-01"
+    updates = [8620]
+    ipr= "trust200902"
+    area = "Applications"
+    workgroup = "JMAP"
+    keyword = ["jmap"]
+
+    date = 2024-11-05T00:00:02Z
+
+    [seriesInfo]
+    name="Internet-Draft"
+    value="draft-gondwana-jmap-filenode-01"
+    stream="IETF"
+    status="standard"
+
+    [[author]]
+    initials="B."
+    surname="Gondwana"
+    fullname="Bron Gondwana"
+    role="editor"
+    organization = "Fastmail"
+        [author.address]
+        email = "brong@fastmailteam.com"
+        uri = "https://www.fastmail.com"
+        [author.address.postal]
+            street = "Level 2, 114 William St"
+            city = "Melbourne"
+            code = "VIC 3000"
+            country = "Australia"
+%%%
+
+.# Abstract
+
+The JMAP base protocol (RFC8620) provides the ability to upload and download
+arbitrary binary data.  This binary data is called a "blob", and can be used
+in all other JMAP extensions.
+
+This extension adds a method to expose blobs as a filesystem along with the
+types of metadata that are provided by other remote filesystem protocols.
+
+{mainmatter}
+
+# Introduction
+
+JMAP ([@!RFC8620] — JSON Meta Application Protocol) is a generic
+protocol for synchronizing data between a client and a server.
+It is optimized for mobile and web environments, and aims to
+provide a consistent interface to different data types.
+
+In the same way that JMAP Calendars ([@I-D.ietf-jmap-calendars]) replaces
+CalDAV ([@RFC5545]) and JMAP Contacts ([@I-D.ietf-jmap-contacts]) replaces
+CardDAV ([@RFC6352]), this document replaces the use of WebDAV ([@RFC4918])
+for remote filesystem access.
+
+# Conventions Used In This Document
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+"MAY", and "OPTIONAL" in this document are to be interpreted as
+described in BCP 14 [@!RFC2119] [@!RFC8174] when, and only when,
+they appear in all capitals, as shown here.
+
+The definitions of JSON keys and datatypes in the document follow
+the conventions described in the core JMAP specification [@!RFC8620].
+
+# Addition to the Capabilities Object
+
+The capabilities object is returned as part of the JMAP Session
+object; see [@!RFC8620], Section 2.
+
+This document defines an additional capability URI.
+
+## urn:ietf:params:jmap:filenode
+
+The capability `urn:ietf:params:jmap:filenode` being present in the
+"accountCapabilities" property of an account represents support
+for the FileNode datatype.  Servers that include the capability
+in one or more "accountCapabilities" properties MUST also include
+the property in the "capabilities" property.
+
+The value of this property in the JMAP session "capabilities"
+property MUST be an empty object.
+
+The value of this property in an account's "accountCapabilities"
+property is an object that MUST contain the following information
+on server capabilities and permissions for that account:
+
+*  maxFileNodeDepth: "UnsignedInt|null"
+
+    The maximum depth of the FileNode hierarchy (i.e., one more than
+    the maximum number of ancestors a FileNode may have), or null for
+    no limit.
+
+* maxSizeFileNodeName: "UnsignedInt":
+
+    The maximum length, in (UTF-8) octets, allowed for the name of a
+    FileNode.  This MUST be at least 100, although it is recommended
+    servers allow more.
+
+* fileNodeQuerySortOptions: "String[]"
+
+    A list of all the values the server supports for the "property"
+    field of the Comparator object in an "FileNode/query" sort (see
+    Section XXX).  This MAY include properties the client does not
+    recognise (for example, custom properties specified in a vendor
+    extension).  Clients MUST ignore any unknown properties in the
+    list.
+
+*  mayCreateTopLevelFileNode: "Boolean"
+
+   If true, the user may create a FileNode (see Section XXX) in this
+   account with a null parentId.  (Permission for creating a child of
+   an existing FileNode is given by the "myRights" property on that
+   FileNode.)
+
+### Capability Example
+
+TODO
+
+# FileNode Data Type
+
+A FileNode is a set of metadata which behaves similar to an inode in
+a filesystem.  In [@!RFC4918] terminology a FileNode can refer to either
+a collection or a resource.
+
+The following JMAP Methods are selected by the
+`urn:ietf:params:jmap:filenode` capability.
+
+## FileNode objects
+
+The filenode object has the following keys:
+
+* id: "Id" (immutable; server-set)
+
+    The Id of the FileNode.
+
+* parentId: "Id|null"
+
+    The Id of the parent node, or null if this is the root node.
+
+* blobId: "Id|null"
+
+    The blobId for the content of this node, or null if this node is a collection.  NOTE the
+    zero byte file MUST have a non-null blobId.
+
+* size: "UnsignedInt|null" (server-set)
+
+    The size in bytes of the associated blob data.  This must be null if, and only if, the blobId is null.
+
+* name: "String"
+
+    User-visible name for the FileNode.  This MUST be a
+    Net-Unicode string [@!RFC5198] of at least 1 character in length,
+    subject to the maximum size given in the capability object.  There
+    MUST NOT be two sibling Mailboxes with both the same parent and
+    the same name.  Servers MAY reject names that violate server
+    policy (e.g., names containing control characters).  Further:
+
+    * The name MUST NOT be "." or ".."
+    * The name MUST NOT contain a "/"
+
+* type: "String|null"
+
+    The media type of the FileNode. This MUST be `null` if, and only if, the node does not have a `blobId`.
+
+    Valid values are found in the IANA media-types registry.
+
+    Servers MUST NOT reject media types that are not recognised.
+
+    Servers MUST reject media types if the value does not conform to the ABNF of [@!RFC6938] Section 4.2.
+
+* created: "UTCDate" (default: current server time)
+
+    The date the node was created.
+
+* modified: "UTCDate" (default: current server time)
+
+    The date the node was last updated.
+    NOTE: this is not updated by the server, clients must store a new value when making changes.
+
+* accessed: "UTCDate" (default: current server time)
+
+    The date the node was last accessed.
+    NOTE: this is not updated by the server, clients must store a new value.  See Implementation Considerations
+    for comments on the use of this field.
+
+* executable: "Boolean" (default: false)
+
+    If true, the file is should be treated as an executable by operating systems that support this flag.
+
+* myRights: "FilesRights" (server-set)
+
+    The set of rights (ACLs) the user has in relation to this folder. A **FilesRights** object has the following properties:
+
+    * mayRead: `Boolean` The user may read the contents of this node.
+    * mayWrite: `Boolean` The user may modify the properties of this node, including renaming children.
+    * mayAdmin: `Boolean` The user may change the sharing of this node (see [@!I-D.ietf-jmap-sharing])
+
+* shareWith: "String[FilesRights]|null"
+
+    A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayAdmin`, or if the node is not shared with anyone.
+
+## FileNode Methods
+
+### FileNode/set
+
+This is a standard Foo/set method, except for some things:
+
+An additional top level argument:
+
+onDestroyRemoveChildren: "Boolean" (default: `false`)
+
+   If false, an attempt to destroy a FileNode which is the parentId of another FileNode will be rejected with a `nodeHasChildren` error.  NOTE: if the other nodes are also been destroyed in the same operation, then the server MUST NOT return this error.  Servers must either sort the destroys children before parents, or only check this constraint on the final state, remembering that JMAP `set` operations must be atomic.
+
+   If true, then all child nodes will also be destroyed when a node is destroyed.
+
+Further, since parentId creates a tree structure, an attempt to move a node to a parent for which this node is also an ancestor is an error, and an `invalidProperties` error will be returned.
+
+### FileNode/get
+
+This is a standard Foo/get method.
+
+### FileNode/changes
+
+This is a standard Foo/changes method.
+
+### FileNode/query
+
+This is a standard Foo/query method except for the following:
+
+There's one more property to the query:
+
+* depth: "UnsignedInt|null"
+
+    The number of levels of subdiretories to recurse into.  If absent, null, or zero, do not recurse.
+
+The following filter criteria are defined:
+
+* hasParentId: "Boolean"
+
+    If true, the node must have a non-null parentId (i.e. is not a root node).
+
+* parentId: "Id"
+
+    A FileNode id. A node must have a parentId equal to this to match the condition.
+
+* ancestorId: "Id"
+
+    A FileNode id. A node must have an ancestor (parent, parent of parent, etc.) with an id equal to this to to match the condition.
+
+* hasType: "Boolean"
+
+    If `true`, the FileNode must be a file/resource, not a directory/collection.
+
+* blobId: "Id"
+
+    A FileNode must have a blobId equal to this to match the condition.
+
+* isExecutable: "Boolean"
+
+    If `true`, the FileNode must have a true executable value.
+
+* createdBefore: "UTCDate"
+
+    The creation date of the node (as returned on the FileNode object) must be before this date to match the condition.
+
+* createdAfter: "UTCDate"
+
+    The creation date of the node (as returned on the FileNode object) must be on or after this date to match the condition.
+
+* modifiedBefore: "UTCDate"
+
+    The modified date of the node (as returned on the FileNode object) must be before this date to match the condition.
+
+* modifiedAfter: "UTCDate"
+
+    The modified date of the node (as returned on the FileNode object) must be on or after this date to match the condition.
+
+* accessedBefore: "UTCDate"
+
+    The accessed date of the node (as returned on the FileNode object) must be before this date to match the condition.
+
+* accessedAfter: "UTCDate"
+
+    The accessed date of the node (as returned on the FileNode object) must be on or after this date to match the condition.
+
+* minSize: "UnsignedInt"
+
+    The size of the node in bytes (as returned on the FileNode object) must be equal to or greater than this number to match the condition.
+
+* maxSize: "UnsignedInt"
+
+    The size of the node in bytes (as returned on the FileNode object) must be less than this number to match the condition.
+
+* name: "String"
+
+    A FileNode must have exactly the same octets in its name property to match the condition.
+
+* nameMatch: "String"
+
+    Does a glob match of the specified name against the *name* property of the node.
+
+* type: "String"
+
+    A FileNode must have exactly the same octets in its type property to match the condition
+
+* typeMatch: "String"
+
+    Does a glob match of the specified type against the *type* property of the node.
+
+It also supports the following additional sort properties:
+
+* tree:
+
+    Sort by tree; which means by name, but any directory/collection node is immediately followed by the recursive application of the same sort to its child nodes.  This is similar to the output of the `find` command on a filesystem with the depth parameter provided above.
+
+* hasType:
+
+    Sort directories before files (false sorts before true)
+
+* type:
+
+    Sorts directories first, and sorts by media type for files
+
+### FileNode/queryChanges
+
+This is a standard Foo/queryChanges method.
+
+
+# Security considerations
+
+TODO: lots of "filesystems are risky" - I guess look at the referenced
+RFCs and what they said.
+
+# IANA considerations
+
+## JMAP Capability registration for "filenode"
+
+IANA is requested to register the "filenode" JMAP Capability as follows:
+
+Capability Name: urn:ietf:params:jmap:filenode
+
+Specification document: this document
+
+Intended use: common
+
+Change Controller: IETF
+
+Security and privacy considerations: this document, Section XXX
+
+
+## JMAP Error Codes registration for "nodeHasChildren"
+
+IANA is requested to register the "nodeHasChildren" JMAP Error Code as follows:
+
+JMAP Error Code: nodeHasChildren
+
+Intended use: common
+
+Change Controller: IETF
+
+Description: The node being destroyed is still referenced by other nodes which have not been destroyed.
+
+Reference: this document
+
+## JMAP Data Types registration for "FileNode"
+
+IANA is requested to register the "FileNode" JMAP Data Type as follows:
+
+Type Name: FileNode
+
+Can Reference Blobs: Yes
+
+Can Use For State Change: Yes
+
+Capability: urn:ietf:params:jmap:filenode
+
+Reference: this document
+
+# TODO
+
+* support SYMLINK types [@RFC4437]
+
+* design and document the capabilities object
+
+* create real-world clients to test this
+
+* security considerations
+
+* a way to get or query all ancestor nodes
+
+* QUESTION: should all the file-related fields be embedded in a sub-object?  There's lots
+  of "must be NULL if and only-if this other field is also NULL" - we could enforce that
+  more easily with a sub-object.
+
+* We need to address how shareWith and myRights expiration are done; because both a potential `fullPath` and the real `myRights` depend on changes to parent nodes.
+
+# Changes
+
+EDITOR: please remove this section before publication.
+
+The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-gondwana-jmap-filenode-01**
+
+* require a blobId for the zero-byte file
+* make size also null for collections
+* add more to the TODO section
+* bikeshed; FileNode
+* correct UTCDate, UnsignedInt, and normalised UTF-8.
+* add some fields to the capabilities object
+
+**draft-gondwana-jmap-filenode-00**
+
+* initial proposal
+
+# Acknowledgements
+
+Neil Jenkins and the JMAP working group at the IETF.
+
+{backmatter}
