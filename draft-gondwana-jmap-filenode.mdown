@@ -212,7 +212,7 @@ This is a standard Foo/set method, except for some things:
 
 An additional top level argument:
 
-onDestroyRemoveChildren: "Boolean" (default: `false`)
+* onDestroyRemoveChildren: "Boolean" (default: `false`)
 
    If false, an attempt to destroy a FileNode which is the parentId of another FileNode will be rejected with a `nodeHasChildren` error.  NOTE: if the other nodes are also been destroyed in the same operation, then the server MUST NOT return this error.  Servers must either sort the destroys children before parents, or only check this constraint on the final state, remembering that JMAP `set` operations must be atomic.
 
