@@ -2,18 +2,18 @@
     title = "JMAP File Storage extension"
     abbrev = "JMAP FileNode"
     category = "std"
-    docName = "draft-gondwana-jmap-filenode-01"
+    docName = "draft-ietf-jmap-filenode-00"
     updates = [8620]
     ipr= "trust200902"
     area = "Applications"
     workgroup = "JMAP"
     keyword = ["jmap"]
 
-    date = 2024-11-05T00:00:02Z
+    date = 2024-11-22T00:00:02Z
 
     [seriesInfo]
     name="Internet-Draft"
-    value="draft-gondwana-jmap-filenode-01"
+    value="draft-ietf-jmap-filenode-00"
     stream="IETF"
     status="standard"
 
@@ -404,6 +404,10 @@ Reference: this document
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-00**
+
+* upload as a working group document
 
 **draft-gondwana-jmap-filenode-01**
 
