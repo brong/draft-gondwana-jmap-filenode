@@ -9,7 +9,7 @@
     workgroup = "JMAP"
     keyword = ["jmap"]
 
-    date = 2024-11-22T00:00:02Z
+    date = 2025-07-07T00:00:02Z
 
     [seriesInfo]
     name="Internet-Draft"
@@ -404,6 +404,10 @@ Reference: this document
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-01**
+
+* Refreshing draft only
 
 **draft-ietf-jmap-filenode-00**
 
