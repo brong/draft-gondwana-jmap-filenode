@@ -2,7 +2,7 @@
     title = "JMAP File Storage extension"
     abbrev = "JMAP FileNode"
     category = "std"
-    docName = "draft-ietf-jmap-filenode-00"
+    docName = "draft-ietf-jmap-filenode-01"
     updates = [8620]
     ipr= "trust200902"
     area = "Applications"
@@ -13,7 +13,7 @@
 
     [seriesInfo]
     name="Internet-Draft"
-    value="draft-ietf-jmap-filenode-00"
+    value="draft-ietf-jmap-filenode-01"
     stream="IETF"
     status="standard"
 
