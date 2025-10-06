@@ -1,39 +1,37 @@
-%%%
-    title = "JMAP File Storage extension"
-    abbrev = "JMAP FileNode"
-    category = "std"
-    docName = "draft-ietf-jmap-filenode-01"
-    updates = [8620]
-    ipr= "trust200902"
-    area = "Applications"
-    workgroup = "JMAP"
-    keyword = ["jmap"]
+---
+title: JMAP File Storage extension
+abbrev: JMAP FileNode
+docname: draft-ietf-jmap-filenode-02
+submissionType: IETF
+category: std
+updates: 8620
+obsoletes:
+ipr: trust200902
+keyword: Internet-Draft
+stand_alone: yes
+pi: [toc, sortrefs, symrefs]
 
-    date = 2025-07-07T00:00:02Z
+author:
+ -
+    ins: B. Gondwana
+    name: Bron Gondwana
+    org: Fastmail
+    email: brong@fastmailteam.com
 
-    [seriesInfo]
-    name="Internet-Draft"
-    value="draft-ietf-jmap-filenode-01"
-    stream="IETF"
-    status="standard"
+normative:
+    JMAP-CORE: RFC8620
+    JMAP-SHARING: I-D.ietf-jmap-sharing
+    MEDIATYPE: RFC6838
 
-    [[author]]
-    initials="B."
-    surname="Gondwana"
-    fullname="Bron Gondwana"
-    role="editor"
-    organization = "Fastmail"
-        [author.address]
-        email = "brong@fastmailteam.com"
-        uri = "https://www.fastmail.com"
-        [author.address.postal]
-            street = "Level 2, 114 William St"
-            city = "Melbourne"
-            code = "VIC 3000"
-            country = "Australia"
-%%%
+informative:
+    CALDAV: RFC5545
+    CARDDAV: RFC6352
+    JMAP-CALENDARS: I-D.ietf-jmap-calendars
+    JMAP-CONTACTS: I-D.ietf-jmap-contacts
+    WEBDAV: RFC4918
+    UNICODE: RFC5198
 
-.# Abstract
+--- abstract
 
 The JMAP base protocol (RFC8620) provides the ability to upload and download
 arbitrary binary data.  This binary data is called a "blob", and can be used
@@ -42,35 +40,24 @@ in all other JMAP extensions.
 This extension adds a method to expose blobs as a filesystem along with the
 types of metadata that are provided by other remote filesystem protocols.
 
-{mainmatter}
+--- middle
 
 # Introduction
 
-JMAP ([@!RFC8620] — JSON Meta Application Protocol) is a generic
+JMAP ({{JMAP-CORE}} — JSON Meta Application Protocol) is a generic
 protocol for synchronizing data between a client and a server.
 It is optimized for mobile and web environments, and aims to
 provide a consistent interface to different data types.
 
-In the same way that JMAP Calendars ([@I-D.ietf-jmap-calendars]) replaces
-CalDAV ([@RFC5545]) and JMAP Contacts ([@I-D.ietf-jmap-contacts]) replaces
-CardDAV ([@RFC6352]), this document replaces the use of WebDAV ([@RFC4918])
+In the same way that JMAP Calendars ({{JMAP-CALENDARS}}) replaces
+CalDAV ({{CALDAV}}) and JMAP Contacts ({{JMAP-CONTACTS}}) replaces
+CardDAV ({{CARDDAV}}), this document replaces the use of WebDAV ({{WEBDAV}})
 for remote filesystem access.
-
-# Conventions Used In This Document
-
-The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
-NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
-"MAY", and "OPTIONAL" in this document are to be interpreted as
-described in BCP 14 [@!RFC2119] [@!RFC8174] when, and only when,
-they appear in all capitals, as shown here.
-
-The definitions of JSON keys and datatypes in the document follow
-the conventions described in the core JMAP specification [@!RFC8620].
 
 # Addition to the Capabilities Object
 
 The capabilities object is returned as part of the JMAP Session
-object; see [@!RFC8620], Section 2.
+object; see {{JMAP-CORE}}, Section 2.
 
 This document defines an additional capability URI.
 
@@ -89,19 +76,19 @@ The value of this property in an account's "accountCapabilities"
 property is an object that MUST contain the following information
 on server capabilities and permissions for that account:
 
-*  maxFileNodeDepth: "UnsignedInt|null"
+* maxFileNodeDepth: "UnsignedInt\|null"
 
     The maximum depth of the FileNode hierarchy (i.e., one more than
     the maximum number of ancestors a FileNode may have), or null for
     no limit.
 
-* maxSizeFileNodeName: "UnsignedInt":
+* maxSizeFileNodeName: "UnsignedInt"
 
     The maximum length, in (UTF-8) octets, allowed for the name of a
     FileNode.  This MUST be at least 100, although it is recommended
     servers allow more.
 
-* fileNodeQuerySortOptions: "String[]"
+* fileNodeQuerySortOptions: "String\[]"
 
     A list of all the values the server supports for the "property"
     field of the Comparator object in an "FileNode/query" sort (see
@@ -110,7 +97,7 @@ on server capabilities and permissions for that account:
     extension).  Clients MUST ignore any unknown properties in the
     list.
 
-*  mayCreateTopLevelFileNode: "Boolean"
+* mayCreateTopLevelFileNode: "Boolean"
 
    If true, the user may create a FileNode (see Section XXX) in this
    account with a null parentId.  (Permission for creating a child of
@@ -124,7 +111,7 @@ TODO
 # FileNode Data Type
 
 A FileNode is a set of metadata which behaves similar to an inode in
-a filesystem.  In [@!RFC4918] terminology a FileNode can refer to either
+a filesystem.  In {{WEBDAV}} terminology a FileNode can refer to either
 a collection or a resource.
 
 The following JMAP Methods are selected by the
@@ -138,23 +125,23 @@ The filenode object has the following keys:
 
     The Id of the FileNode.
 
-* parentId: "Id|null"
+* parentId: "Id\|null"
 
     The Id of the parent node, or null if this is the root node.
 
-* blobId: "Id|null"
+* blobId: "Id\|null"
 
     The blobId for the content of this node, or null if this node is a collection.  NOTE the
     zero byte file MUST have a non-null blobId.
 
-* size: "UnsignedInt|null" (server-set)
+* size: "UnsignedInt\|null" (server-set)
 
     The size in bytes of the associated blob data.  This must be null if, and only if, the blobId is null.
 
 * name: "String"
 
     User-visible name for the FileNode.  This MUST be a
-    Net-Unicode string [@!RFC5198] of at least 1 character in length,
+    Net-Unicode string {{UNICODE}} of at least 1 character in length,
     subject to the maximum size given in the capability object.  There
     MUST NOT be two sibling Mailboxes with both the same parent and
     the same name.  Servers MAY reject names that violate server
@@ -163,7 +150,7 @@ The filenode object has the following keys:
     * The name MUST NOT be "." or ".."
     * The name MUST NOT contain a "/"
 
-* type: "String|null"
+* type: "String\|null"
 
     The media type of the FileNode. This MUST be `null` if, and only if, the node does not have a `blobId`.
 
@@ -171,7 +158,7 @@ The filenode object has the following keys:
 
     Servers MUST NOT reject media types that are not recognised.
 
-    Servers MUST reject media types if the value does not conform to the ABNF of [@!RFC6938] Section 4.2.
+    Servers MUST reject media types if the value does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
 
 * created: "UTCDate" (default: current server time)
 
@@ -198,9 +185,9 @@ The filenode object has the following keys:
 
     * mayRead: `Boolean` The user may read the contents of this node.
     * mayWrite: `Boolean` The user may modify the properties of this node, including renaming children.
-    * mayAdmin: `Boolean` The user may change the sharing of this node (see [@!I-D.ietf-jmap-sharing])
+    * mayAdmin: `Boolean` The user may change the sharing of this node (see {{JMAP-SHARING}})
 
-* shareWith: "String[FilesRights]|null"
+* shareWith: "String\[FilesRights]\|null"
 
     A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayAdmin`, or if the node is not shared with anyone.
 
@@ -234,7 +221,7 @@ This is a standard Foo/query method except for the following:
 
 There's one more property to the query:
 
-* depth: "UnsignedInt|null"
+* depth: "UnsignedInt\|null"
 
     The number of levels of subdiretories to recurse into.  If absent, null, or zero, do not recurse.
 
@@ -383,7 +370,7 @@ Reference: this document
 
 # TODO
 
-* support SYMLINK types [@RFC4437]
+* support SYMLINK types (RFC4437)
 
 * design and document the capabilities object
 
@@ -393,9 +380,7 @@ Reference: this document
 
 * a way to get or query all ancestor nodes
 
-* QUESTION: should all the file-related fields be embedded in a sub-object?  There's lots
-  of "must be NULL if and only-if this other field is also NULL" - we could enforce that
-  more easily with a sub-object.
+* QUESTION: should all the file-related fields be embedded in a sub-object?  There's lots of "must be NULL if and only-if this other field is also NULL" - we could enforce that more easily with a sub-object.
 
 * We need to address how shareWith and myRights expiration are done; because both a potential `fullPath` and the real `myRights` depend on changes to parent nodes.
 
@@ -404,6 +389,10 @@ Reference: this document
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-02**
+
+* Convert to Kramdown-RFC format (no intentional changes)
 
 **draft-ietf-jmap-filenode-01**
 
