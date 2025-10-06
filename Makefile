@@ -1,15 +1,20 @@
+SOURCEFILES=$(wildcard *.mkd)
+BASENAMES=$(basename $(SOURCEFILES))
+XMLFILES=$(addsuffix .xml,$(BASENAMES))
+HTMLFILES=$(addsuffix .html,$(BASENAMES))
+TXTFILES=$(addsuffix .txt,$(BASENAMES))
+GENERATED=$(XMLFILES) $(HTMLFILES) $(TXTFILES)
 
+.PHONY: all clean
 
-build: draft-ietf-jmap-filenode.txt draft-ietf-jmap-filenode.html draft-ietf-jmap-filenode.xml
+all: $(GENERATED)
 
-%.xml: %.mdown
-	mmark $< > $@
+%.xml:	%.mkd
+	kramdown-rfc2629 $< > $@
 
-%.txt: %.xml
+%.html %.txt:	%.xml
+	xml2rfc --html $<
 	xml2rfc --text $<
 
-%.html: %.xml
-	xml2rfc --html $<
-
 clean:
-	rm -f *.txt *.html *.xml
+	rm -f $(GENERATED)
