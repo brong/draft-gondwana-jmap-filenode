@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-02
+docname: draft-ietf-jmap-filenode-03
 submissionType: IETF
 category: std
 updates: 8620
@@ -20,14 +20,15 @@ author:
 
 normative:
     JMAP-CORE: RFC8620
-    JMAP-SHARING: I-D.ietf-jmap-sharing
+    JMAP-SHARING: RFC9670
     MEDIATYPE: RFC6838
 
 informative:
     CALDAV: RFC5545
     CARDDAV: RFC6352
+    JMAP-MAIL: RFC8621
     JMAP-CALENDARS: I-D.ietf-jmap-calendars
-    JMAP-CONTACTS: I-D.ietf-jmap-contacts
+    JMAP-CONTACTS: RFC9610
     WEBDAV: RFC4918
     UNICODE: RFC5198
 
@@ -177,19 +178,26 @@ The filenode object has the following keys:
 
 * executable: "Boolean" (default: false)
 
-    If true, the file is should be treated as an executable by operating systems that support this flag.
+    If true, the node is should be treated as an executable by operating systems that support this flag.
+
+* isSubscribed: "Boolean" (default: true)
+
+    This property is stored per user, and if true, the node should be displayed to the current user.
+    Some servers may not allow this field to be changed for some or all nodes, e.g. only for directories,
+    or only for nodes on which the shareWith ACL is actually set for this user, not nodes which
+    inheret their ACL from a parent.
 
 * myRights: "FilesRights" (server-set)
 
     The set of rights (ACLs) the user has in relation to this folder. A **FilesRights** object has the following properties:
 
     * mayRead: `Boolean` The user may read the contents of this node.
-    * mayWrite: `Boolean` The user may modify the properties of this node, including renaming children.
-    * mayAdmin: `Boolean` The user may change the sharing of this node (see {{JMAP-SHARING}})
+    * mayWrite: `Boolean` The user may modify the properties of this node, including renaming or deleting children.
+    * mayShare: `Boolean` The user may change the sharing of this node (see {{JMAP-SHARING}})
 
 * shareWith: "String\[FilesRights]\|null"
 
-    A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayAdmin`, or if the node is not shared with anyone.
+    A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayShare`, or if the node is not shared with anyone.
 
 ## FileNode Methods
 
@@ -203,7 +211,7 @@ An additional top level argument:
 
    If false, an attempt to destroy a FileNode which is the parentId of another FileNode will be rejected with a `nodeHasChildren` error.  NOTE: if the other nodes are also been destroyed in the same operation, then the server MUST NOT return this error.  Servers must either sort the destroys children before parents, or only check this constraint on the final state, remembering that JMAP `set` operations must be atomic.
 
-   If true, then all child nodes will also be destroyed when a node is destroyed.
+   If true, then all child nodes will also be destroyed when a node is destroyed.  When deleting child nodes, the server MUST include the ids of all deleted nodes in the method response.
 
 Further, since parentId creates a tree structure, an attempt to move a node to a parent for which this node is also an ancestor is an error, and an `invalidProperties` error will be returned.
 
@@ -299,6 +307,17 @@ The following filter criteria are defined:
 
     Does a glob match of the specified type against the *type* property of the node.
 
+* body: "String"
+
+    Match the content of the referenced blob, see the definition of *body* in section
+    4.4.1 of {{JMAP-MAIL}}.  The server may use any technology to extract meaningful
+    text from the blob for searching, or interpret the string in any way, to choose
+    the nodes that it believes the user wants to see.
+
+* text: "String"
+
+    Is equivalent to *body* OR *nameMatch* OR *typeMatch*.
+
 It also supports the following additional sort properties:
 
 * tree:
@@ -317,6 +336,54 @@ It also supports the following additional sort properties:
 
 This is a standard Foo/queryChanges method.
 
+# Access Control
+
+Since nodes create a tree, ACLs created by shareWith automatically apply
+to children as well, so if `mayRead` is set on a node, all its child nodes
+are also readable.
+
+If a server does not support changing access on non-directory nodes, it
+can set `mayShare` to false on those nodes, even if the parent directory
+has true.
+
+Nodes which are not "discoverable" MUST return notFound errors if
+fetched with FileNode/get and MUST NOT be returned in response to
+FileNode/query.  Nodes are discoverable in one of two ways:
+
+1. If the Node or an ancestor of the Node has mayRead true.
+
+2. If the Node is an ancestor of a Node which has mayRead true.
+
+In the second case, the Node itself will have mayRead false, and appears
+only to give the full path to the visible Nodes.  This means that
+a query with that Node as the parent will only return those of its
+children which are otherwise discoverable through the second
+discoverability rule.
+
+This leads to a sharee seeing the full path to anything that they have
+access to, but nothing else.
+
+E.g. in a unix homedirectory environment where user Alice had shared
+the "forBob" folder, one might see, when logged in as Bob:
+
+~~~artwork
+/home
+  /alice
+    /shared
+      /forBob
+        file1.jpg
+        file2.txt
+        ...
+  /bob
+    bobfile.txt
+    ...
+~~~
+
+While Alice would see many more files and folders at the home directory level.
+
+This does lead to potentially large changes in the visible Node set, so when
+Alice first shared that directory, Bob would have been told of a large number of
+"created" Nodes in response to a FileNode/changes query.
 
 # Security considerations
 
@@ -389,6 +456,15 @@ Reference: this document
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-03**
+
+* Added 'text' and 'body' searches (added JMAP-MAIL reference as additional information for body search)
+* Updated JMAP-CONTACTS and JMAP-SHARING references to published RFC numbers rather than draft names
+* Noted that the server MUST included the nodeids of deleted child nodes.
+* Added isSubscribed
+* Renamed mayAdmin to mayShare to align with other specs
+* Described the inheretence of ACLs
 
 **draft-ietf-jmap-filenode-02**
 
