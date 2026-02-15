@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-03
+docname: draft-ietf-jmap-filenode-04
 submissionType: IETF
 category: std
 updates: 8620
@@ -133,11 +133,12 @@ The filenode object has the following keys:
 * blobId: "Id\|null"
 
     The blobId for the content of this node, or null if this node is a collection.  NOTE the
-    zero byte file MUST have a non-null blobId.
+    zero byte file MUST have a non-null blobId.  The blobId is immutable after creation.
 
 * size: "UnsignedInt\|null" (server-set)
 
     The size in bytes of the associated blob data.  This must be null if, and only if, the blobId is null.
+    The size is immutable after creation.
 
 * name: "String"
 
@@ -151,6 +152,10 @@ The filenode object has the following keys:
     * The name MUST NOT be "." or ".."
     * The name MUST NOT contain a "/"
 
+    A server MUST order creation and deletion operations within a single FileNode/set such that
+    the sibling constraint is retained at the end of the transaction, but replacing an existing
+    file can be done atomically.
+
 * type: "String\|null"
 
     The media type of the FileNode. This MUST be `null` if, and only if, the node does not have a `blobId`.
@@ -160,6 +165,8 @@ The filenode object has the following keys:
     Servers MUST NOT reject media types that are not recognised.
 
     Servers MUST reject media types if the value does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
+
+    The type is immutable after creation.
 
 * created: "UTCDate" (default: current server time)
 
@@ -195,7 +202,7 @@ The filenode object has the following keys:
     * mayWrite: `Boolean` The user may modify the properties of this node, including renaming or deleting children.
     * mayShare: `Boolean` The user may change the sharing of this node (see {{JMAP-SHARING}})
 
-* shareWith: "String\[FilesRights]\|null"
+* shareWith: "Id\[FilesRights]\|null"
 
     A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayShare`, or if the node is not shared with anyone.
 
@@ -203,17 +210,25 @@ The filenode object has the following keys:
 
 ### FileNode/set
 
-This is a standard Foo/set method, except for some things:
+This is a standard Foo/set method, with the following differences:
 
-An additional top level argument:
+Since parentId creates a tree structure, an attempt to move a node to a parent for which this node is also an ancestor is an error, and an `invalidProperties` error will be returned.
+
+There are these additional top level arguments:
 
 * onDestroyRemoveChildren: "Boolean" (default: `false`)
 
-   If false, an attempt to destroy a FileNode which is the parentId of another FileNode will be rejected with a `nodeHasChildren` error.  NOTE: if the other nodes are also been destroyed in the same operation, then the server MUST NOT return this error.  Servers must either sort the destroys children before parents, or only check this constraint on the final state, remembering that JMAP `set` operations must be atomic.
+   If false, an attempt to destroy a FileNode which is the parentId of another FileNode will be rejected with a `nodeHasChildren` error.  NOTE: if all the child nodes are being destroyed in the same operation, then the server MUST NOT return this error.  Servers must either sort the destroys children before parents, or only check this constraint on the final state, remembering that JMAP `set` operations must be atomic.
 
    If true, then all child nodes will also be destroyed when a node is destroyed.  When deleting child nodes, the server MUST include the ids of all deleted nodes in the method response.
 
-Further, since parentId creates a tree structure, an attempt to move a node to a parent for which this node is also an ancestor is an error, and an `invalidProperties` error will be returned.
+* onDuplicate: "String\|null" (default: null)
+
+   If null, an attempt to create or update a FileNode which would cause a name collision will be rejected by the server with a "alreadyExists" error.
+
+   If "replace", the existing item will destroyed.  In this case, the server MUST include the id of the replaced item in the destroyed response list.  NOTE: if the replaced item is a directory which contains folders, then the server MUST respond with a nodeHasChildren error to this action unless onDestroyRemoveChildren is true.
+
+   If "rename", the server will change the 'name' field to not clash, using an algorithm of its choice.  If the server changes the name, it MUST include the new 'name' value in the created or updated response field for this id.
 
 ### FileNode/get
 
@@ -456,6 +471,13 @@ Reference: this document
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-04**
+
+* Documented that blobId, size, and type are immutable after creation.
+* Documented that creating a file and deleting the old copy of the file within a transaction is legal.
+* Added onConflict top-level option for FileNode/set, giving both "rename" and "replace" options.
+* Updated the definition of shareWith to say that the keys of the hash are Ids, not arbitrary strings
 
 **draft-ietf-jmap-filenode-03**
 
