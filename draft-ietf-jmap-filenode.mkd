@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-05
+docname: draft-ietf-jmap-filenode-06
 submissionType: IETF
 category: std
 updates: 8620
@@ -246,6 +246,10 @@ There are these additional top level arguments:
    If "replace", the existing item will destroyed.  In this case, the server MUST include the id of the replaced item in the destroyed response list.  NOTE: if the replaced item is a directory which contains folders, then the server MUST respond with a nodeHasChildren error to this action unless onDestroyRemoveChildren is true.
 
    If "rename", the server will change the "name" field to not clash, using an algorithm of its choice.  If the server changes the name, it MUST include the new "name" value in the created or updated response field for this id.
+
+### FileNode/copy
+
+This is a standard Foo/copy function with the same additional top-level arguments as FileNode/set, onDestroyRemoveChildren and onExists, with the same behaviour.
 
 ### FileNode/get
 
@@ -497,6 +501,10 @@ Reference: this document
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-06**
+
+* Documented FileNode/copy and detailed that it has the same new top-level keys
 
 **draft-ietf-jmap-filenode-05**
 
