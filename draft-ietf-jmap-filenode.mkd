@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-04
+docname: draft-ietf-jmap-filenode-05
 submissionType: IETF
 category: std
 updates: 8620
@@ -128,7 +128,7 @@ The filenode object has the following keys:
 
 * parentId: "Id\|null"
 
-    The Id of the parent node, or null if this is the root node.
+    The Id of the parent node, or null if this is a top level node.
 
 * blobId: "Id\|null"
 
@@ -138,6 +138,8 @@ The filenode object has the following keys:
 * size: "UnsignedInt\|null" (server-set)
 
     The size in bytes of the associated blob data.  This must be null if, and only if, the blobId is null.
+    Size is optional on create, but if provided it MUST match the size of the provided blobId, or be null
+    if the node is a directory.
     The size is immutable after creation.
 
 * name: "String"
@@ -151,6 +153,8 @@ The filenode object has the following keys:
 
     * The name MUST NOT be "." or ".."
     * The name MUST NOT contain a "/"
+
+    TODO: are there other characters which we should forbid (e.g. ':' is not allowed on Windows)
 
     A server MUST order creation and deletion operations within a single FileNode/set such that
     the sibling constraint is retained at the end of the transaction, but replacing an existing
@@ -206,6 +210,19 @@ The filenode object has the following keys:
 
     A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayShare`, or if the node is not shared with anyone.
 
+* role: "String\|null"
+
+    An indication that this directory has a special role.  The role MUST be null for files.
+
+    TODO: we'll need to decide if there's an existin registry or whether we need a registry for known roles.
+
+    The initial known roles are:
+
+    * "root" - the base of a filesystem.
+    * "home" - a user's home directory.
+    * "temp" - a temporary space - things stored in here are expected to be cleaned up automatically
+    * "trash" - a place where deleted data is moved to, it's expected that data from here will be deleted either automatically or manually.
+
 ## FileNode Methods
 
 ### FileNode/set
@@ -222,13 +239,13 @@ There are these additional top level arguments:
 
    If true, then all child nodes will also be destroyed when a node is destroyed.  When deleting child nodes, the server MUST include the ids of all deleted nodes in the method response.
 
-* onDuplicate: "String\|null" (default: null)
+* onExists: "String\|null" (default: null)
 
    If null, an attempt to create or update a FileNode which would cause a name collision will be rejected by the server with a "alreadyExists" error.
 
    If "replace", the existing item will destroyed.  In this case, the server MUST include the id of the replaced item in the destroyed response list.  NOTE: if the replaced item is a directory which contains folders, then the server MUST respond with a nodeHasChildren error to this action unless onDestroyRemoveChildren is true.
 
-   If "rename", the server will change the 'name' field to not clash, using an algorithm of its choice.  If the server changes the name, it MUST include the new 'name' value in the created or updated response field for this id.
+   If "rename", the server will change the "name" field to not clash, using an algorithm of its choice.  If the server changes the name, it MUST include the new "name" value in the created or updated response field for this id.
 
 ### FileNode/get
 
@@ -250,9 +267,9 @@ There's one more property to the query:
 
 The following filter criteria are defined:
 
-* hasParentId: "Boolean"
+* isTopLevel: "Boolean"
 
-    If true, the node must have a non-null parentId (i.e. is not a root node).
+    If true, the node must have a null parentId to match the condition.
 
 * parentId: "Id"
 
@@ -265,6 +282,15 @@ The following filter criteria are defined:
 * hasType: "Boolean"
 
     If `true`, the FileNode must be a file/resource, not a directory/collection.
+
+* hasRole: "String"
+
+   A role name.  Only nodes with precisely this role match this condition.
+
+* hasAnyRole: "Boolean"
+
+   If true, any node with a defined role matches this condition.  If false, any node
+   which has a role does not match this condition.
 
 * blobId: "Id"
 
@@ -472,11 +498,18 @@ EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
 
+**draft-ietf-jmap-filenode-05**
+
+* Renamed onDuplicate to onExists for name alignment
+* added "role" for directories
+* added a "TODO" for putting more restrictions on node names
+* changed hasParentId to isTopLevel with reversed boolean meaning
+
 **draft-ietf-jmap-filenode-04**
 
 * Documented that blobId, size, and type are immutable after creation.
 * Documented that creating a file and deleting the old copy of the file within a transaction is legal.
-* Added onConflict top-level option for FileNode/set, giving both "rename" and "replace" options.
+* Added onDuplicate top-level option for FileNode/set, giving both "rename" and "replace" options.
 * Updated the definition of shareWith to say that the keys of the hash are Ids, not arbitrary strings
 
 **draft-ietf-jmap-filenode-03**
