@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-06
+docname: draft-ietf-jmap-filenode-07
 submissionType: IETF
 category: std
 updates: 8620
@@ -22,6 +22,7 @@ normative:
     JMAP-CORE: RFC8620
     JMAP-SHARING: RFC9670
     MEDIATYPE: RFC6838
+    URI-TEMPLATE: RFC6570
 
 informative:
     CALDAV: RFC5545
@@ -92,22 +93,47 @@ on server capabilities and permissions for that account:
 * fileNodeQuerySortOptions: "String\[]"
 
     A list of all the values the server supports for the "property"
-    field of the Comparator object in an "FileNode/query" sort (see
-    Section XXX).  This MAY include properties the client does not
+    field of the Comparator object in a "FileNode/query" sort (see
+    "FileNode/query" below).  This MAY include properties the client does not
     recognise (for example, custom properties specified in a vendor
     extension).  Clients MUST ignore any unknown properties in the
     list.
 
 * mayCreateTopLevelFileNode: "Boolean"
 
-   If true, the user may create a FileNode (see Section XXX) in this
+   If true, the user may create a FileNode (see "FileNode/set" below) in this
    account with a null parentId.  (Permission for creating a child of
    an existing FileNode is given by the "myRights" property on that
    FileNode.)
 
+* webTrashUrl: "String\|null"
+
+    The URL at which the folder with the "trash" role can be viewed
+    on the web.  If null, there is no web URL available.
+
+* webUrlTemplate: "String\|null"
+
+    A template by which any node can be viewed on the web, in URI
+    Template (level 1) format {{URI-TEMPLATE}}.  If null, there is
+    no web URL available.
+
 ### Capability Example
 
-TODO
+~~~json
+{
+  "urn:ietf:params:jmap:filenode": {
+    "maxFileNodeDepth": 50,
+    "maxSizeFileNodeName": 255,
+    "fileNodeQuerySortOptions": [
+      "name", "type", "size", "created", "modified",
+      "hasType", "tree"
+    ],
+    "mayCreateTopLevelFileNode": false,
+    "webTrashUrl": "https://files.example.com/trash",
+    "webUrlTemplate": "https://files.example.com/view/{id}"
+  }
+}
+~~~
 
 # FileNode Data Type
 
@@ -147,7 +173,7 @@ The filenode object has the following keys:
     User-visible name for the FileNode.  This MUST be a
     Net-Unicode string {{UNICODE}} of at least 1 character in length,
     subject to the maximum size given in the capability object.  There
-    MUST NOT be two sibling Mailboxes with both the same parent and
+    MUST NOT be two sibling FileNodes with both the same parent and
     the same name.  Servers MAY reject names that violate server
     policy (e.g., names containing control characters).  Further:
 
@@ -189,14 +215,14 @@ The filenode object has the following keys:
 
 * executable: "Boolean" (default: false)
 
-    If true, the node is should be treated as an executable by operating systems that support this flag.
+    If true, the node should be treated as an executable by operating systems that support this flag.
 
 * isSubscribed: "Boolean" (default: true)
 
     This property is stored per user, and if true, the node should be displayed to the current user.
     Some servers may not allow this field to be changed for some or all nodes, e.g. only for directories,
     or only for nodes on which the shareWith ACL is actually set for this user, not nodes which
-    inheret their ACL from a parent.
+    inherit their ACL from a parent.
 
 * myRights: "FilesRights" (server-set)
 
@@ -214,7 +240,7 @@ The filenode object has the following keys:
 
     An indication that this directory has a special role.  The role MUST be null for files.
 
-    TODO: we'll need to decide if there's an existin registry or whether we need a registry for known roles.
+    TODO: we'll need to decide if there's an existing registry or whether we need a registry for known roles.
 
     The initial known roles are:
 
@@ -247,9 +273,22 @@ There are these additional top level arguments:
 
    If "rename", the server will change the "name" field to not clash, using an algorithm of its choice.  If the server changes the name, it MUST include the new "name" value in the created or updated response field for this id.
 
+Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
+
+* "alreadyExists" — a create or update would cause a name collision
+  with an existing sibling FileNode, and onExists is null.  The
+  SetError object MUST include an `existingId` property with the id
+  of the existing FileNode.
+* "invalidProperties" — an attempt was made to move a node to a
+  descendant of itself, creating a cycle in the tree.
+* "nodeHasChildren" — a destroy was attempted on a FileNode that
+  has children, and onDestroyRemoveChildren is false.
+
 ### FileNode/copy
 
 This is a standard Foo/copy function with the same additional top-level arguments as FileNode/set, onDestroyRemoveChildren and onExists, with the same behaviour.
+
+Errors: the same additional errors as FileNode/set apply.
 
 ### FileNode/get
 
@@ -267,7 +306,7 @@ There's one more property to the query:
 
 * depth: "UnsignedInt\|null"
 
-    The number of levels of subdiretories to recurse into.  If absent, null, or zero, do not recurse.
+    The number of levels of subdirectories to recurse into.  If absent, null, or zero, do not recurse.
 
 The following filter criteria are defined:
 
@@ -449,7 +488,7 @@ Intended use: common
 
 Change Controller: IETF
 
-Security and privacy considerations: this document, Section XXX
+Security and privacy considerations: this document, Security Considerations
 
 
 ## JMAP Error Codes registration for "nodeHasChildren"
@@ -502,6 +541,13 @@ EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
 
+**draft-ietf-jmap-filenode-07**
+
+* added webTrashUrl and webUrlTemplate to the capabilities object
+* added capability example JSON
+* added explicit Errors sections to FileNode/set and FileNode/copy
+* fixed typos and spelling errors
+
 **draft-ietf-jmap-filenode-06**
 
 * Documented FileNode/copy and detailed that it has the same new top-level keys
@@ -527,7 +573,7 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * Noted that the server MUST included the nodeids of deleted child nodes.
 * Added isSubscribed
 * Renamed mayAdmin to mayShare to align with other specs
-* Described the inheretence of ACLs
+* Described the inheritance of ACLs
 
 **draft-ietf-jmap-filenode-02**
 
