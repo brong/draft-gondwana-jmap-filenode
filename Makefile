@@ -10,11 +10,13 @@ GENERATED=$(XMLFILES) $(HTMLFILES) $(TXTFILES)
 all: $(GENERATED)
 
 %.xml:	%.mkd
-	kramdown-rfc2629 $< > $@
+	kramdown-rfc2629 $< > $@.tmp && mv $@.tmp $@
 
-%.html %.txt:	%.xml
-	xml2rfc --html $<
-	xml2rfc --text $<
+%.html:	%.xml
+	xml2rfc --html -o $@.tmp $< && mv $@.tmp $@
+
+%.txt:	%.xml
+	xml2rfc --text -o $@.tmp $< && mv $@.tmp $@
 
 clean:
 	rm -f $(GENERATED)

@@ -32,7 +32,6 @@ informative:
     JMAP-MAIL: RFC8621
     JMAP-CALENDARS: I-D.ietf-jmap-calendars
     JMAP-CONTACTS: RFC9610
-    JMAP-BLOB: RFC9404
     WEBDAV: RFC4918
     UNICODE: RFC5198
 
@@ -507,7 +506,7 @@ This is a standard Foo/queryChanges method.
 
 When a server advertises both `urn:ietf:params:jmap:filenode` and
 `urn:ietf:params:jmap:blobext`, the ArchiveEntry object type
-(defined in [@!JMAP-BLOBEXT]) is extended with two additional
+(defined in {{JMAP-BLOBEXT}}) is extended with two additional
 properties:
 
 * nodeId: "Id|null"
