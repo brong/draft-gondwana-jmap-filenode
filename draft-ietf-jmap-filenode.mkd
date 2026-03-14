@@ -24,6 +24,7 @@ normative:
     MEDIATYPE: RFC6838
     URI-TEMPLATE: RFC6570
     IANA-GUIDELINES: RFC8126
+    JMAP-BLOBEXT: I-D.draft-gondwana-jmap-blobext
 
 informative:
     CALDAV: RFC4791
@@ -32,7 +33,6 @@ informative:
     JMAP-CALENDARS: I-D.ietf-jmap-calendars
     JMAP-CONTACTS: RFC9610
     JMAP-BLOB: RFC9404
-    JMAP-BLOBEXT: I-D.draft-gondwana-jmap-blobext
     WEBDAV: RFC4918
     UNICODE: RFC5198
 
@@ -145,7 +145,7 @@ on server capabilities and permissions for that account:
 
 # FileNode Data Type
 
-A FileNode is a set of metadata which behaves similar to an inode in
+A FileNode is a set of metadata which behaves similarly to an inode in
 a filesystem.  In {{WEBDAV}} terminology a FileNode can refer to either
 a collection or a resource.
 
@@ -610,13 +610,13 @@ Nodes which are not "discoverable" MUST return notFound errors if
 fetched with FileNode/get and MUST NOT be returned in response to
 FileNode/query.  Nodes are discoverable in one of two ways:
 
-1. If the Node or an ancestor of the Node has mayRead true.
+1. If the node or an ancestor of the node has mayRead true.
 
-2. If the Node is an ancestor of a Node which has mayRead true.
+2. If the node is an ancestor of a node which has mayRead true.
 
-In the second case, the Node itself will have mayRead false, and appears
-only to give the full path to the visible Nodes.  This means that
-a query with that Node as the parent will only return those of its
+In the second case, the node itself will have mayRead false, and appears
+only to give the full path to the visible nodes.  This means that
+a query with that node as the parent will only return those of its
 children which are otherwise discoverable through the second
 discoverability rule.
 
