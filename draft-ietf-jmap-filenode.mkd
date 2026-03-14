@@ -545,15 +545,14 @@ To archive an entire directory tree rooted at FileNode
   "accountId": "account1",
   "create": {
     "myarchive": {
-      "recipes": [{
-        "type": "Archive",
-        "format": "zip",
+      "archive": {
+        "type": "application/zip",
         "entries": [{
           "nodeId": "dirabc",
           "name": "/",
           "recurse": true
         }]
-      }]
+      }
     }
   }
 }, "R1"]]
@@ -567,9 +566,8 @@ a full subdirectory:
   "accountId": "account1",
   "create": {
     "selective": {
-      "recipes": [{
-        "type": "Archive",
-        "format": "zip",
+      "archive": {
+        "type": "application/zip",
         "entries": [
           {
             "nodeId": "filenode1",
@@ -581,7 +579,7 @@ a full subdirectory:
             "recurse": true
           }
         ]
-      }]
+      }
     }
   }
 }, "R1"]]
