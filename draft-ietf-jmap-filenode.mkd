@@ -23,13 +23,16 @@ normative:
     JMAP-SHARING: RFC9670
     MEDIATYPE: RFC6838
     URI-TEMPLATE: RFC6570
+    IANA-GUIDELINES: RFC8126
 
 informative:
-    CALDAV: RFC5545
+    CALDAV: RFC4791
     CARDDAV: RFC6352
     JMAP-MAIL: RFC8621
     JMAP-CALENDARS: I-D.ietf-jmap-calendars
     JMAP-CONTACTS: RFC9610
+    JMAP-BLOB: RFC9404
+    JMAP-BLOBEXT: I-D.draft-gondwana-jmap-blobext
     WEBDAV: RFC4918
     UNICODE: RFC5198
 
@@ -55,6 +58,10 @@ In the same way that JMAP Calendars ({{JMAP-CALENDARS}}) replaces
 CalDAV ({{CALDAV}}) and JMAP Contacts ({{JMAP-CONTACTS}}) replaces
 CardDAV ({{CARDDAV}}), this document replaces the use of WebDAV ({{WEBDAV}})
 for remote filesystem access.
+
+## Conventions Used in This Document
+
+{::boilerplate bcp14-tagged}
 
 # Addition to the Capabilities Object
 
@@ -90,7 +97,7 @@ on server capabilities and permissions for that account:
     FileNode.  This MUST be at least 100, although it is recommended
     servers allow more.
 
-* fileNodeQuerySortOptions: "String\[]"
+* fileNodeQuerySortOptions: "String[]"
 
     A list of all the values the server supports for the "property"
     field of the Comparator object in a "FileNode/query" sort (see
@@ -114,8 +121,9 @@ on server capabilities and permissions for that account:
 * webUrlTemplate: "String\|null"
 
     A template by which any node can be viewed on the web, in URI
-    Template (level 1) format {{URI-TEMPLATE}}.  If null, there is
-    no web URL available.
+    Template (level 1) format {{URI-TEMPLATE}}.  The available
+    variable is `{id}`, which is the FileNode id.  If null, there
+    is no web URL available.
 
 ### Capability Example
 
@@ -158,15 +166,21 @@ The filenode object has the following keys:
 
 * blobId: "Id\|null"
 
-    The blobId for the content of this node, or null if this node is a collection.  NOTE the
-    zero byte file MUST have a non-null blobId.  The blobId is immutable after creation.
+    The blobId for the content of this node, or null if this node
+    is a collection.  MUST be non-null for file nodes (including
+    zero byte files).  Creating a file node without a blobId is
+    an "invalidProperties" error.  The blobId is immutable after
+    creation.  A blob referenced by a FileNode MUST NOT be
+    expired or garbage collected by the server while the FileNode
+    exists.
 
 * size: "UnsignedInt\|null" (server-set)
 
-    The size in bytes of the associated blob data.  This must be null if, and only if, the blobId is null.
-    Size is optional on create, but if provided it MUST match the size of the provided blobId, or be null
-    if the node is a directory.
-    The size is immutable after creation.
+    The size in bytes of the associated blob data.  This MUST be
+    null if, and only if, the blobId is null.  Size is optional on
+    create, but if provided it MUST match the size of the provided
+    blobId, or be null if the node is a directory.  The size is
+    immutable after creation.
 
 * name: "String"
 
@@ -180,74 +194,95 @@ The filenode object has the following keys:
     * The name MUST NOT be "." or ".."
     * The name MUST NOT contain a "/"
 
-    TODO: are there other characters which we should forbid (e.g. ':' is not allowed on Windows)
+    Servers MAY reject names containing additional characters that
+    are problematic on common platforms (e.g. "\\", ":", "*", "?",
+    "\"", "<", ">", "\|") with an "invalidProperties" error.
 
-    A server MUST order creation and deletion operations within a single FileNode/set such that
-    the sibling constraint is retained at the end of the transaction, but replacing an existing
-    file can be done atomically.
+    A server MUST order creation and deletion operations within a
+    single FileNode/set such that the sibling constraint is
+    retained at the end of the transaction, but replacing an
+    existing file can be done atomically.
 
 * type: "String\|null"
 
-    The media type of the FileNode. This MUST be `null` if, and only if, the node does not have a `blobId`.
-
-    Valid values are found in the IANA media-types registry.
-
-    Servers MUST NOT reject media types that are not recognised.
-
-    Servers MUST reject media types if the value does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
-
-    The type is immutable after creation.
+    The media type of the FileNode.  This MUST be `null` if, and
+    only if, the node does not have a `blobId`.  Valid values are
+    found in the IANA media-types registry.  Servers MUST NOT
+    reject media types that are not recognised.  Servers MUST
+    reject media types if the value does not conform to the ABNF
+    of {{MEDIATYPE}} Section 4.2.  The type is immutable after
+    creation.
 
 * created: "UTCDate" (default: current server time)
 
     The date the node was created.
 
-* modified: "UTCDate" (default: current server time)
+* modified: "UTCDate\|null" (default: current server time)
 
-    The date the node was last updated.
-    NOTE: this is not updated by the server, clients must store a new value when making changes.
+    The date the node was last updated.  The server does not
+    automatically update this value; clients SHOULD provide an
+    updated value when modifying the node.  This gives clients
+    control over the timestamp, for example when preserving
+    original modification times during file synchronization.
+    If the client does not include `modified` in an update, the
+    server MUST leave it unchanged.  If the client sets `modified`
+    to null, the server MUST set it to the current server time.
 
-* accessed: "UTCDate" (default: current server time)
+* accessed: "UTCDate\|null" (default: current server time)
 
-    The date the node was last accessed.
-    NOTE: this is not updated by the server, clients must store a new value.  See Implementation Considerations
-    for comments on the use of this field.
+    The date the node was last accessed.  As with `modified`,
+    the server does not automatically update this value; clients
+    SHOULD provide an updated value when appropriate.  If not
+    included in an update, the server MUST leave it unchanged.
+    If set to null, the server MUST set it to the current server
+    time.
 
 * executable: "Boolean" (default: false)
 
-    If true, the node should be treated as an executable by operating systems that support this flag.
+    If true, the node should be treated as an executable by
+    operating systems that support this flag.
 
 * isSubscribed: "Boolean" (default: true)
 
-    This property is stored per user, and if true, the node should be displayed to the current user.
-    Some servers may not allow this field to be changed for some or all nodes, e.g. only for directories,
-    or only for nodes on which the shareWith ACL is actually set for this user, not nodes which
-    inherit their ACL from a parent.
+    This property is stored per user, and if true, the node should
+    be displayed to the current user.  Some servers may not allow
+    this field to be changed for some or all nodes, e.g. only for
+    directories, or only for nodes on which the shareWith ACL is
+    actually set for this user, not nodes which inherit their ACL
+    from a parent.
 
 * myRights: "FilesRights" (server-set)
 
-    The set of rights (ACLs) the user has in relation to this folder. A **FilesRights** object has the following properties:
+    The set of rights (ACLs) the user has in relation to this
+    node.  A **FilesRights** object has the following properties:
 
-    * mayRead: `Boolean` The user may read the contents of this node.
-    * mayWrite: `Boolean` The user may modify the properties of this node, including renaming or deleting children.
-    * mayShare: `Boolean` The user may change the sharing of this node (see {{JMAP-SHARING}})
+    * mayRead: `Boolean` The user may read the contents of this
+      node.
+    * mayWrite: `Boolean` The user may modify the properties of
+      this node, including renaming or deleting children.
+    * mayShare: `Boolean` The user may change the sharing of this
+      node (see {{JMAP-SHARING}}).
 
 * shareWith: "Id\[FilesRights]\|null"
 
-    A map of userId to rights for users this node is shared with. The owner of the node MUST NOT be in this set. This is `null` if the user requesting the object does not have `myRights.mayShare`, or if the node is not shared with anyone.
+    A map of userId to rights for users this node is shared with.
+    The owner of the node MUST NOT be in this set.  This is `null`
+    if the user requesting the object does not have
+    `myRights.mayShare`, or if the node is not shared with anyone.
 
 * role: "String\|null"
 
-    An indication that this directory has a special role.  The role MUST be null for files.
-
-    TODO: we'll need to decide if there's an existing registry or whether we need a registry for known roles.
-
-    The initial known roles are:
+    An indication that this directory has a special role.  The role
+    MUST be null for files.  Values are registered in the "JMAP
+    FileNode Roles" registry (see IANA Considerations).  The initial
+    values are:
 
     * "root" - the base of a filesystem.
     * "home" - a user's home directory.
-    * "temp" - a temporary space - things stored in here are expected to be cleaned up automatically
-    * "trash" - a place where deleted data is moved to, it's expected that data from here will be deleted either automatically or manually.
+    * "temp" - a temporary space; contents may be cleaned up
+      automatically by the server.
+    * "trash" - a place where deleted data is moved to; contents
+      may be deleted either automatically or manually.
 
 ## FileNode Methods
 
@@ -255,23 +290,43 @@ The filenode object has the following keys:
 
 This is a standard Foo/set method, with the following differences:
 
-Since parentId creates a tree structure, an attempt to move a node to a parent for which this node is also an ancestor is an error, and an `invalidProperties` error will be returned.
+Since parentId creates a tree structure, an attempt to move a node
+to a parent for which this node is also an ancestor is an error,
+and an `invalidProperties` error will be returned.
 
 There are these additional top level arguments:
 
 * onDestroyRemoveChildren: "Boolean" (default: `false`)
 
-   If false, an attempt to destroy a FileNode which is the parentId of another FileNode will be rejected with a `nodeHasChildren` error.  NOTE: if all the child nodes are being destroyed in the same operation, then the server MUST NOT return this error.  Servers must either sort the destroys children before parents, or only check this constraint on the final state, remembering that JMAP `set` operations must be atomic.
+   If false, an attempt to destroy a FileNode which is the parentId
+   of another FileNode will be rejected with a `nodeHasChildren`
+   error.  NOTE: if all the child nodes are being destroyed in the
+   same operation, then the server MUST NOT return this error.
+   Servers MUST either sort the destroys children before parents,
+   or only check this constraint on the final state, remembering
+   that JMAP `set` operations must be atomic.
 
-   If true, then all child nodes will also be destroyed when a node is destroyed.  When deleting child nodes, the server MUST include the ids of all deleted nodes in the method response.
+   If true, then all child nodes will also be destroyed when a
+   node is destroyed.  When deleting child nodes, the server MUST
+   include the ids of all deleted nodes in the method response.
 
 * onExists: "String\|null" (default: null)
 
-   If null, an attempt to create or update a FileNode which would cause a name collision will be rejected by the server with a "alreadyExists" error.
+   If null, an attempt to create or update a FileNode which would
+   cause a name collision will be rejected by the server with an
+   "alreadyExists" error.
 
-   If "replace", the existing item will destroyed.  In this case, the server MUST include the id of the replaced item in the destroyed response list.  NOTE: if the replaced item is a directory which contains folders, then the server MUST respond with a nodeHasChildren error to this action unless onDestroyRemoveChildren is true.
+   If "replace", the existing item will be destroyed.  In this
+   case, the server MUST include the id of the replaced item in
+   the destroyed response list.  NOTE: if the replaced item is a
+   directory which has children, then the server MUST respond with
+   a nodeHasChildren error to this action unless
+   onDestroyRemoveChildren is true.
 
-   If "rename", the server will change the "name" field to not clash, using an algorithm of its choice.  If the server changes the name, it MUST include the new "name" value in the created or updated response field for this id.
+   If "rename", the server will change the "name" field to not
+   clash, using an algorithm of its choice.  If the server changes
+   the name, it MUST include the new "name" value in the created
+   or updated response field for this id.
 
 Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 
@@ -286,7 +341,9 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 
 ### FileNode/copy
 
-This is a standard Foo/copy function with the same additional top-level arguments as FileNode/set, onDestroyRemoveChildren and onExists, with the same behaviour.
+This is a standard Foo/copy function with the same additional
+top-level arguments as FileNode/set, onDestroyRemoveChildren and
+onExists, with the same behaviour.
 
 Errors: the same additional errors as FileNode/set apply.
 
@@ -306,38 +363,47 @@ There's one more property to the query:
 
 * depth: "UnsignedInt\|null"
 
-    The number of levels of subdirectories to recurse into.  If absent, null, or zero, do not recurse.
+    The number of levels of subdirectories to recurse into.  If
+    absent, null, or zero, do not recurse.
 
 The following filter criteria are defined:
 
 * isTopLevel: "Boolean"
 
-    If true, the node must have a null parentId to match the condition.
+    If true, the node must have a null parentId to match the
+    condition.
 
 * parentId: "Id"
 
-    A FileNode id. A node must have a parentId equal to this to match the condition.
+    A FileNode id.  A node must have a parentId equal to this to
+    match the condition.
 
 * ancestorId: "Id"
 
-    A FileNode id. A node must have an ancestor (parent, parent of parent, etc.) with an id equal to this to to match the condition.
+    A FileNode id.  A node must have an ancestor (parent, parent
+    of parent, etc.) with an id equal to this to match the
+    condition.
 
 * hasType: "Boolean"
 
-    If `true`, the FileNode must be a file/resource, not a directory/collection.
+    If `true`, the FileNode must be a file/resource, not a
+    directory/collection.
 
 * hasRole: "String"
 
-   A role name.  Only nodes with precisely this role match this condition.
+    A role name.  Only nodes with precisely this role match this
+    condition.
 
 * hasAnyRole: "Boolean"
 
-   If true, any node with a defined role matches this condition.  If false, any node
-   which has a role does not match this condition.
+    If true, any node with a defined role matches this condition.
+    If false, any node which has a role does not match this
+    condition.
 
 * blobId: "Id"
 
-    A FileNode must have a blobId equal to this to match the condition.
+    A FileNode must have a blobId equal to this to match the
+    condition.
 
 * isExecutable: "Boolean"
 
@@ -345,57 +411,70 @@ The following filter criteria are defined:
 
 * createdBefore: "UTCDate"
 
-    The creation date of the node (as returned on the FileNode object) must be before this date to match the condition.
+    The creation date of the node must be before this date to
+    match the condition.
 
 * createdAfter: "UTCDate"
 
-    The creation date of the node (as returned on the FileNode object) must be on or after this date to match the condition.
+    The creation date of the node must be on or after this date
+    to match the condition.
 
 * modifiedBefore: "UTCDate"
 
-    The modified date of the node (as returned on the FileNode object) must be before this date to match the condition.
+    The modified date of the node must be before this date to
+    match the condition.
 
 * modifiedAfter: "UTCDate"
 
-    The modified date of the node (as returned on the FileNode object) must be on or after this date to match the condition.
+    The modified date of the node must be on or after this date
+    to match the condition.
 
 * accessedBefore: "UTCDate"
 
-    The accessed date of the node (as returned on the FileNode object) must be before this date to match the condition.
+    The accessed date of the node must be before this date to
+    match the condition.
 
 * accessedAfter: "UTCDate"
 
-    The accessed date of the node (as returned on the FileNode object) must be on or after this date to match the condition.
+    The accessed date of the node must be on or after this date
+    to match the condition.
 
 * minSize: "UnsignedInt"
 
-    The size of the node in bytes (as returned on the FileNode object) must be equal to or greater than this number to match the condition.
+    The size of the node in bytes must be equal to or greater
+    than this number to match the condition.
 
 * maxSize: "UnsignedInt"
 
-    The size of the node in bytes (as returned on the FileNode object) must be less than this number to match the condition.
+    The size of the node in bytes must be less than this number
+    to match the condition.
 
 * name: "String"
 
-    A FileNode must have exactly the same octets in its name property to match the condition.
+    A FileNode must have exactly the same octets in its name
+    property to match the condition.
 
 * nameMatch: "String"
 
-    Does a glob match of the specified name against the *name* property of the node.
+    Does a glob match of the specified name against the *name*
+    property of the node.
 
 * type: "String"
 
-    A FileNode must have exactly the same octets in its type property to match the condition
+    A FileNode must have exactly the same octets in its type
+    property to match the condition.
 
 * typeMatch: "String"
 
-    Does a glob match of the specified type against the *type* property of the node.
+    Does a glob match of the specified type against the *type*
+    property of the node.
 
 * body: "String"
 
-    Match the content of the referenced blob, see the definition of *body* in section
-    4.4.1 of {{JMAP-MAIL}}.  The server may use any technology to extract meaningful
-    text from the blob for searching, or interpret the string in any way, to choose
+    Match the content of the referenced blob, see the definition
+    of *body* in section 4.4.1 of {{JMAP-MAIL}}.  The server may
+    use any technology to extract meaningful text from the blob
+    for searching, or interpret the string in any way, to choose
     the nodes that it believes the user wants to see.
 
 * text: "String"
@@ -406,7 +485,11 @@ It also supports the following additional sort properties:
 
 * tree:
 
-    Sort by tree; which means by name, but any directory/collection node is immediately followed by the recursive application of the same sort to its child nodes.  This is similar to the output of the `find` command on a filesystem with the depth parameter provided above.
+    Sort by tree; which means by name, but any directory/collection
+    node is immediately followed by the recursive application of
+    the same sort to its child nodes.  This is similar to the
+    output of the `find` command on a filesystem with the depth
+    parameter provided above.
 
 * hasType:
 
@@ -420,15 +503,108 @@ It also supports the following additional sort properties:
 
 This is a standard Foo/queryChanges method.
 
+# Integration with JMAP Blob Extensions
+
+When a server advertises both `urn:ietf:params:jmap:filenode` and
+`urn:ietf:params:jmap:blobext`, the ArchiveEntry object type
+(defined in [@!JMAP-BLOBEXT]) is extended with two additional
+properties:
+
+* nodeId: "Id|null"
+  A FileNode id.  When present, the server populates the
+  archive entry from the referenced FileNode's properties.
+  The `blobId` and `name` are taken from the FileNode.  The
+  FileNode's `created` and `modified` timestamps map to the
+  archive entry's time metadata.  The FileNode's
+  `myRights` (specifically the `mayWrite` right) and the
+  `executable` property inform the `mode` field in the
+  archive entry (e.g., permissions and executable bit).
+  If the ArchiveEntry also provides explicit values for
+  any of these properties, the explicit values take
+  precedence.  Mutually exclusive with providing `blobId`
+  directly when the FileNode is a file.
+
+* recurse: "Boolean" (default: false)
+  Only valid when the referenced FileNode is a directory.
+  When true, the server recursively includes all children
+  of the directory in the archive.  Each child entry's
+  `name` is its full path relative to the directory.
+  Directory names MUST include a trailing `/`.
+
+If `nodeId` references a FileNode that the user does not have
+permission to read, or that does not exist, the server MUST
+reject the Blob/convert creation with a `notFound` SetError.
+
+## Examples
+
+To archive an entire directory tree rooted at FileNode
+"dirabc" into a zip file:
+
+```json
+[["Blob/convert", {
+  "accountId": "account1",
+  "create": {
+    "myarchive": {
+      "recipes": [{
+        "type": "Archive",
+        "format": "zip",
+        "entries": [{
+          "nodeId": "dirabc",
+          "name": "/",
+          "recurse": true
+        }]
+      }]
+    }
+  }
+}, "R1"]]
+```
+
+To archive specific files from different locations along with
+a full subdirectory:
+
+```json
+[["Blob/convert", {
+  "accountId": "account1",
+  "create": {
+    "selective": {
+      "recipes": [{
+        "type": "Archive",
+        "format": "zip",
+        "entries": [
+          {
+            "nodeId": "filenode1",
+            "name": "README.txt"
+          },
+          {
+            "nodeId": "dirnode2",
+            "name": "docs/",
+            "recurse": true
+          }
+        ]
+      }]
+    }
+  }
+}, "R1"]]
+```
+
 # Access Control
 
-Since nodes create a tree, ACLs created by shareWith automatically apply
-to children as well, so if `mayRead` is set on a node, all its child nodes
-are also readable.
+Since nodes create a tree, ACLs created by shareWith automatically
+apply to children as well, so if `mayRead` is set on a node, all
+its child nodes are also readable.  The `myRights` property on
+every node reflects the derived rights for the current user,
+taking inheritance into account.
 
-If a server does not support changing access on non-directory nodes, it
-can set `mayShare` to false on those nodes, even if the parent directory
-has true.
+When a `shareWith` change on a node causes the derived `myRights`
+to change for any descendant, the server MUST report those
+descendants as changed in FileNode/changes responses.  The server
+SHOULD NOT report descendants whose derived `myRights` did not
+actually change, but MAY do so if it cannot efficiently determine
+whether the derived values differ.
+
+If a server does not support changing access on non-directory
+nodes, it can set `mayShare` to false on those nodes, even if the
+parent directory has true.
 
 Nodes which are not "discoverable" MUST return notFound errors if
 fetched with FileNode/get and MUST NOT be returned in response to
@@ -463,16 +639,58 @@ the "forBob" folder, one might see, when logged in as Bob:
     ...
 ~~~
 
-While Alice would see many more files and folders at the home directory level.
+While Alice would see many more files and folders at the home
+directory level.
 
-This does lead to potentially large changes in the visible Node set, so when
-Alice first shared that directory, Bob would have been told of a large number of
-"created" Nodes in response to a FileNode/changes query.
+This does lead to potentially large changes in the visible Node
+set, so when Alice first shared that directory, Bob would have
+been told of a large number of new Nodes in response to a
+FileNode/changes query.  The server might report these as
+"created" or "updated" — it is not always possible for the server
+to know whether a node was previously visible to the user.
 
 # Security considerations
 
-TODO: lots of "filesystems are risky" - I guess look at the referenced
-RFCs and what they said.
+All security considerations from {{JMAP-CORE}} apply to this document.
+
+## Path Traversal
+
+FileNode names MUST NOT contain "/" or be "." or "..".  Servers MUST
+enforce these constraints.  Clients that reconstruct filesystem paths
+from FileNode hierarchies MUST validate the resulting paths and reject
+any that would escape the intended directory tree.
+
+## Denial of Service
+
+Deep nesting of FileNodes or very large numbers of children under a
+single parent can consume significant server resources.  Servers
+SHOULD enforce reasonable limits via `maxFileNodeDepth` and MAY
+impose additional limits on the number of children per node.
+Recursive operations such as destroying a subtree with
+`onDestroyRemoveChildren` can be expensive; servers SHOULD impose
+limits on the size of subtrees that can be destroyed in a single
+operation.
+
+## Access Control
+
+The discoverability rules defined in this document mean that ancestor
+nodes of shared content are visible (with `mayRead` false) to users
+who have access to descendants.  While these ancestor nodes do not
+expose file content, their names and structure may reveal information
+about the file hierarchy.  Server administrators and users sharing
+content should be aware of this.
+
+Changes to the `shareWith` property on a node affect all descendants.
+Removing sharing from a parent node will make all descendants
+undiscoverable to the affected users, which may be surprising if
+those users had been actively working with the shared files.
+
+## Content Security
+
+Servers that perform content scanning or malware detection SHOULD
+scan blobs referenced by FileNode objects.  The `type` property is
+client-asserted and MUST NOT be trusted for security decisions;
+servers SHOULD independently verify content types where this matters.
 
 # IANA considerations
 
@@ -519,21 +737,26 @@ Capability: urn:ietf:params:jmap:filenode
 
 Reference: this document
 
+## JMAP FileNode Roles Registry
+
+IANA is requested to create a new "JMAP FileNode Roles" registry
+with the following initial values.  New registrations are subject
+to Expert Review ({{IANA-GUIDELINES}}).
+
+| Role  | Description                                          | Reference      |
+|-------|------------------------------------------------------|----------------|
+| root  | The base of a filesystem                             | this document  |
+| home  | A user's home directory                              | this document  |
+| temp  | Temporary space; may be cleaned up automatically     | this document  |
+| trash | Deleted data; may be removed automatically or manually | this document |
+
 # TODO
 
 * support SYMLINK types (RFC4437)
 
-* design and document the capabilities object
-
 * create real-world clients to test this
 
-* security considerations
-
 * a way to get or query all ancestor nodes
-
-* QUESTION: should all the file-related fields be embedded in a sub-object?  There's lots of "must be NULL if and only-if this other field is also NULL" - we could enforce that more easily with a sub-object.
-
-* We need to address how shareWith and myRights expiration are done; because both a potential `fullPath` and the real `myRights` depend on changes to parent nodes.
 
 # Changes
 
@@ -547,6 +770,18 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * added capability example JSON
 * added explicit Errors sections to FileNode/set and FileNode/copy
 * fixed typos and spelling errors
+* added BCP 14 boilerplate
+* fleshed out Security Considerations
+* replaced role TODO with IANA registry
+* documented webUrlTemplate variables
+* clarified modified/accessed semantics: client-managed with null
+  to reset to server time
+* clarified blobId constraints and blob lifetime
+* documented myRights inheritance and FileNode/changes behaviour
+  when shareWith changes
+* wrapped long lines throughout
+* added Integration with JMAP Blob Extensions section
+  (ArchiveEntry extension with nodeId and recurse)
 
 **draft-ietf-jmap-filenode-06**
 
