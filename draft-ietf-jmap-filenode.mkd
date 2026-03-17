@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-07
+docname: draft-ietf-jmap-filenode-08
 submissionType: IETF
 category: std
 updates: 8620
@@ -124,6 +124,14 @@ on server capabilities and permissions for that account:
     variable is `{id}`, which is the FileNode id.  If null, there
     is no web URL available.
 
+* webWriteUrlTemplate: "String\|null"
+
+    A URI Template (level 1) {{URI-TEMPLATE}} for writing content
+    to a file node.  The available variable is `{id}`, which is
+    the FileNode id.  If null, direct HTTP writes are not
+    supported and clients must use FileNode/set to update content.
+    See "Direct HTTP Write" below for the HTTP semantics.
+
 ### Capability Example
 
 ~~~json
@@ -137,7 +145,8 @@ on server capabilities and permissions for that account:
     ],
     "mayCreateTopLevelFileNode": false,
     "webTrashUrl": "https://files.example.com/trash",
-    "webUrlTemplate": "https://files.example.com/view/{id}"
+    "webUrlTemplate": "https://files.example.com/view/{id}",
+    "webWriteUrlTemplate": "https://files.example.com/write/{id}"
   }
 }
 ~~~
@@ -167,19 +176,24 @@ The filenode object has the following keys:
 
     The blobId for the content of this node, or null if this node
     is a collection.  MUST be non-null for file nodes (including
-    zero byte files).  Creating a file node without a blobId is
-    an "invalidProperties" error.  The blobId is immutable after
-    creation.  A blob referenced by a FileNode MUST NOT be
-    expired or garbage collected by the server while the FileNode
-    exists.
+    zero byte files).  Creating or updating a file node to have a
+    null blobId is an "invalidProperties" error.  Updating the
+    blobId replaces the node's content; the server MUST update
+    `size` to match the new blob.  A directory node (null blobId)
+    cannot be changed to a file node or vice versa; attempting to
+    do so is an "invalidProperties" error.  A blob referenced by
+    a FileNode MUST NOT be expired or garbage collected by the
+    server while the FileNode exists.
 
 * size: "UnsignedInt\|null" (server-set)
 
     The size in bytes of the associated blob data.  This MUST be
     null if, and only if, the blobId is null.  Size is optional on
-    create, but if provided it MUST match the size of the provided
-    blobId, or be null if the node is a directory.  The size is
-    immutable after creation.
+    create and update, but if provided it MUST match the size of
+    the provided blobId, or be null if the node is a directory.
+    If the client updates `blobId` without providing `size`, the
+    server sets `size` from the new blob and returns the size in
+    the "updated" response.
 
 * name: "String"
 
@@ -209,8 +223,7 @@ The filenode object has the following keys:
     found in the IANA media-types registry.  Servers MUST NOT
     reject media types that are not recognised.  Servers MUST
     reject media types if the value does not conform to the ABNF
-    of {{MEDIATYPE}} Section 4.2.  The type is immutable after
-    creation.
+    of {{MEDIATYPE}} Section 4.2.
 
 * created: "UTCDate" (default: current server time)
 
@@ -272,16 +285,10 @@ The filenode object has the following keys:
 * role: "String\|null"
 
     An indication that this directory has a special role.  The role
-    MUST be null for files.  Values are registered in the "JMAP
-    FileNode Roles" registry (see IANA Considerations).  The initial
-    values are:
-
-    * "root" - the base of a filesystem.
-    * "home" - a user's home directory.
-    * "temp" - a temporary space; contents may be cleaned up
-      automatically by the server.
-    * "trash" - a place where deleted data is moved to; contents
-      may be deleted either automatically or manually.
+    MUST be null for files.  A node with the "root" role should
+    have a null parentId.  Clients MUST ignore unrecognised role
+    values.  Values are registered in the "JMAP FileNode Roles"
+    registry (see IANA Considerations).
 
 ## FileNode Methods
 
@@ -501,6 +508,65 @@ It also supports the following additional sort properties:
 ### FileNode/queryChanges
 
 This is a standard Foo/queryChanges method.
+
+## Direct HTTP Write
+
+When the server advertises a `webWriteUrlTemplate`, clients can
+update a file node's content directly via HTTP without using
+FileNode/set.  The URL is constructed by expanding the template
+with the FileNode id.  This is only valid for file nodes (those
+with a non-null blobId); requests targeting directory nodes MUST
+be rejected with an HTTP 400 status.
+
+The client MUST have `mayWrite` permission on the node.
+Requests without sufficient permission MUST be rejected with an
+HTTP 403 status.  Authentication uses the same mechanism as other
+JMAP HTTP endpoints.
+
+### PUT
+
+A PUT request replaces the entire content of the node.  The
+request body is the new content.  The Content-Type header sets
+the media type of the node.
+
+On success, the server MUST update the node's `blobId`, `size`,
+and `type` properties, and return an HTTP 200 response with a
+JSON body:
+
+~~~json
+{
+  "blobId": "Bnewblob123",
+  "size": 48576,
+  "type": "text/plain"
+}
+~~~
+
+### PATCH
+
+A PATCH request applies a partial modification to the node's
+current content.  The Content-Type of the request indicates the
+patch format.  The supported patch formats are those listed in
+the `supportedPatchTypes` capability of {{JMAP-BLOBEXT}} (e.g.,
+`application/x-rdiff-delta`, `application/x-bsdiff`,
+`text/x-diff`).  The server applies the delta to the node's
+current blob to produce the new content.
+
+On success, the server MUST update the node's `blobId` and
+`size` properties.  The `type` is not changed unless the client
+includes an `X-FileNode-Type` header, in which case the server
+MUST update the node's `type` to the header value.  The response
+is an HTTP 200 with the same JSON body as PUT:
+
+~~~json
+{
+  "blobId": "Bpatched456",
+  "size": 49152,
+  "type": "text/plain"
+}
+~~~
+
+Servers that do not support a given patch format MUST respond
+with HTTP 415 (Unsupported Media Type).
 
 # Integration with JMAP Blob Extensions
 
@@ -740,12 +806,17 @@ IANA is requested to create a new "JMAP FileNode Roles" registry
 with the following initial values.  New registrations are subject
 to Expert Review ({{IANA-GUIDELINES}}).
 
-| Role  | Description                                          | Reference      |
-|-------|------------------------------------------------------|----------------|
-| root  | The base of a filesystem                             | this document  |
-| home  | A user's home directory                              | this document  |
-| temp  | Temporary space; may be cleaned up automatically     | this document  |
-| trash | Deleted data; may be removed automatically or manually | this document |
+| Role      | Description                                          | Reference      |
+|-----------|------------------------------------------------------|----------------|
+| root      | The base of a filesystem                             | this document  |
+| home      | A user's home directory                              | this document  |
+| temp      | Temporary space; may be cleaned up automatically     | this document  |
+| trash     | Deleted data; may be removed automatically or manually | this document |
+| documents | Document storage                                     | this document  |
+| downloads | Downloaded files                                     | this document  |
+| music     | Audio files                                          | this document  |
+| pictures  | Photos and images                                    | this document  |
+| videos    | Video files                                          | this document  |
 
 # TODO
 
@@ -760,6 +831,14 @@ to Expert Review ({{IANA-GUIDELINES}}).
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-08**
+
+* Removed immutability restriction on blobId, size, and type — nodes
+  can now have their content updated via FileNode/set.
+* Added webWriteUrlTemplate capability for direct HTTP PUT/PATCH
+  writes to file nodes.
+* Added documents, downloads, music, pictures, and videos roles.
 
 **draft-ietf-jmap-filenode-07**
 
