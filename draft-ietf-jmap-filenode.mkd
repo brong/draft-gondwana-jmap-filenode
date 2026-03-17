@@ -32,6 +32,7 @@ informative:
     JMAP-MAIL: RFC8621
     JMAP-CALENDARS: I-D.ietf-jmap-calendars
     JMAP-CONTACTS: RFC9610
+    JMAP-QUOTAS: RFC9425
     WEBDAV: RFC4918
     UNICODE: RFC5198
 
@@ -568,6 +569,14 @@ is an HTTP 200 with the same JSON body as PUT:
 Servers that do not support a given patch format MUST respond
 with HTTP 415 (Unsupported Media Type).
 
+# Quotas
+
+Servers that support JMAP Quotas ({{JMAP-QUOTAS}}) SHOULD
+provide Quota objects with `"FileNode"` in the `types` array.
+Both the `octets` resource type (total storage used by file
+node blobs) and the `count` resource type (number of FileNode
+objects) are applicable.
+
 # Integration with JMAP Blob Extensions
 
 When a server advertises both `urn:ietf:params:jmap:filenode` and
@@ -839,6 +848,7 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * Added webWriteUrlTemplate capability for direct HTTP PUT/PATCH
   writes to file nodes.
 * Added documents, downloads, music, pictures, and videos roles.
+* Added Quotas section referencing RFC 9425.
 
 **draft-ietf-jmap-filenode-07**
 
