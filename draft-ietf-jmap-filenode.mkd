@@ -356,7 +356,19 @@ Errors: the same additional errors as FileNode/set apply.
 
 ### FileNode/get
 
-This is a standard Foo/get method.
+This is a standard Foo/get method, with the following additional
+request argument:
+
+* fetchParents: "Boolean" (default: false)
+
+    If true, the server returns all ancestor nodes of the
+    requested ids in addition to the requested nodes themselves.
+    This allows a client to reconstruct the full path to each
+    requested node in a single call.  Ancestor nodes that have
+    already been included (either because they were explicitly
+    requested or because they are ancestors of multiple requested
+    nodes) are not duplicated.  The ancestors are returned as
+    additional entries in the `list` array.
 
 ### FileNode/changes
 
@@ -390,6 +402,12 @@ The following filter criteria are defined:
     A FileNode id.  A node must have an ancestor (parent, parent
     of parent, etc.) with an id equal to this to match the
     condition.
+
+* descendantId: "Id"
+
+    A FileNode id.  A node must be an ancestor (parent, parent
+    of parent, etc.) of the node with this id to match the
+    condition.  This is the inverse of `ancestorId`.
 
 * isFile: "Boolean"
 
@@ -843,8 +861,6 @@ to Expert Review ({{IANA-GUIDELINES}}).
 * support SYMLINK types (RFC4437)
 
 * create real-world clients to test this
-
-* a way to get or query all ancestor nodes
 
 # Changes
 
