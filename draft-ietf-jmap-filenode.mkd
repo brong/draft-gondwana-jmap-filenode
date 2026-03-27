@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-08
+docname: draft-ietf-jmap-filenode-09
 submissionType: IETF
 category: std
 updates: 8620
@@ -867,6 +867,14 @@ to Expert Review ({{IANA-GUIDELINES}}).
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-09**
+
+* Renamed hasType filter to isFile and isDirectory (separate filters).
+* Renamed hasRole filter to role for consistency.
+* Defined glob matching syntax for nameMatch/typeMatch (*, ?, [...]).
+* Added fetchParents argument to FileNode/get.
+* Added descendantId filter to FileNode/query.
 
 **draft-ietf-jmap-filenode-08**
 
