@@ -142,7 +142,7 @@ on server capabilities and permissions for that account:
     "maxSizeFileNodeName": 255,
     "fileNodeQuerySortOptions": [
       "name", "type", "size", "created", "modified",
-      "hasType", "tree"
+      "isDirectory", "tree"
     ],
     "mayCreateTopLevelFileNode": false,
     "webTrashUrl": "https://files.example.com/trash",
@@ -391,12 +391,17 @@ The following filter criteria are defined:
     of parent, etc.) with an id equal to this to match the
     condition.
 
-* hasType: "Boolean"
+* isFile: "Boolean"
 
-    If `true`, the FileNode must be a file/resource, not a
-    directory/collection.
+    If `true`, the FileNode must be a file (has a non-null blobId).
+    If `false`, the FileNode must not be a file.
 
-* hasRole: "String"
+* isDirectory: "Boolean"
+
+    If `true`, the FileNode must be a directory (has a null blobId).
+    If `false`, the FileNode must not be a directory.
+
+* role: "String"
 
     A role name.  Only nodes with precisely this role match this
     condition.
@@ -463,8 +468,14 @@ The following filter criteria are defined:
 
 * nameMatch: "String"
 
-    Does a glob match of the specified name against the *name*
-    property of the node.
+    Matches the *name* property of the node using glob syntax.
+    The following special patterns are defined: `*` matches any
+    sequence of characters, `?` matches any single character,
+    and `[...]` matches any single character in the bracketed
+    set (e.g., `[abc]` matches "a", "b", or "c"; `[a-z]`
+    matches any lowercase letter; `[!abc]` or `[^abc]` matches
+    any character not in the set).  All other characters match
+    literally.  The match is case-insensitive.
 
 * type: "String"
 
@@ -473,8 +484,8 @@ The following filter criteria are defined:
 
 * typeMatch: "String"
 
-    Does a glob match of the specified type against the *type*
-    property of the node.
+    Matches the *type* property of the node using the same glob
+    syntax as *nameMatch*.
 
 * body: "String"
 
@@ -498,9 +509,9 @@ It also supports the following additional sort properties:
     output of the `find` command on a filesystem with the depth
     parameter provided above.
 
-* hasType:
+* isDirectory:
 
-    Sort directories before files (false sorts before true)
+    Sort directories before files (true sorts before false)
 
 * type:
 
