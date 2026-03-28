@@ -691,8 +691,8 @@ a full subdirectory:
 ## Extracting Archives into FileNodes
 
 When both capabilities are present, the UnArchiveRecipe
-(defined in {{JMAP-BLOBEXT}}) is extended with an additional
-property:
+(defined in {{JMAP-BLOBEXT}}) is extended with the following
+additional properties:
 
 * parentNodeId: "Id\|null"
   A FileNode id of a directory.  When present, the server
@@ -705,14 +705,18 @@ property:
   entry includes a `mode` field, the server SHOULD use it to
   set the `executable` property on the created FileNode.
 
+* onExists: "String\|null" (default: null)
+  Controls the behaviour when an extracted entry would collide
+  with an existing FileNode name under the same parent.  The
+  values and semantics are the same as for FileNode/set (see
+  above): null rejects with an `alreadyExists` SetError,
+  "replace" destroys the existing node, and "rename" gives the
+  new node a server-chosen name.
+
 When `parentNodeId` is set, each ArchiveEntry in the response
 `entries` array includes an additional `nodeId` property
 containing the id of the FileNode that was created for that
 entry.
-
-If a name collision occurs during extraction, the server MUST
-reject the Blob/convert creation with an `alreadyExists`
-SetError.
 
 If `parentNodeId` references a FileNode that does not exist,
 is not a directory, or for which the user does not have
