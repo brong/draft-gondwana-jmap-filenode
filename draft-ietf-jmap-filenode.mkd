@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-09
+docname: draft-ietf-jmap-filenode-10
 submissionType: IETF
 category: std
 updates: 8620
@@ -489,10 +489,10 @@ The following filter criteria are defined:
     Matches the *name* property of the node using glob syntax.
     The following special patterns are defined: `*` matches any
     sequence of characters, `?` matches any single character,
-    and `[...]` matches any single character in the bracketed
-    set (e.g., `[abc]` matches "a", "b", or "c"; `[a-z]`
-    matches any lowercase letter; `[!abc]` or `[^abc]` matches
-    any character not in the set).  All other characters match
+    and a pair of brackets matches any single character in the
+    bracketed set (e.g., `[abc]` matches "a", "b", or "c";
+    `[a-z]` matches any lowercase letter; `[!abc]` or `[^abc]`
+    matches any character not in the set).  All other characters match
     literally.  The match is case-insensitive.
 
 * type: "String"
@@ -688,6 +688,96 @@ a full subdirectory:
 }, "R1"]]
 ```
 
+## Extracting Archives into FileNodes
+
+When both capabilities are present, the UnArchiveRecipe
+(defined in {{JMAP-BLOBEXT}}) is extended with an additional
+property:
+
+* parentNodeId: "Id\|null"
+  A FileNode id of a directory.  When present, the server
+  extracts the archive contents into this directory, creating
+  FileNode objects for each entry.  Subdirectories in the
+  archive are created as directory FileNodes.  File entries
+  become file FileNodes with their `blobId` set to the
+  extracted content.  The `created` and `modified` timestamps
+  are taken from the archive entry metadata.  If the archive
+  entry includes a `mode` field, the server SHOULD use it to
+  set the `executable` property on the created FileNode.
+
+When `parentNodeId` is set, each ArchiveEntry in the response
+`entries` array includes an additional `nodeId` property
+containing the id of the FileNode that was created for that
+entry.
+
+If a name collision occurs during extraction, the server MUST
+reject the Blob/convert creation with an `alreadyExists`
+SetError.
+
+If `parentNodeId` references a FileNode that does not exist,
+is not a directory, or for which the user does not have
+`mayWrite` permission, the server MUST reject the Blob/convert
+creation with an appropriate SetError (`notFound`,
+`invalidProperties`, or `forbidden`).
+
+### Example
+
+Extracting a zip file into a directory:
+
+```json
+[["Blob/convert", {
+  "accountId": "account1",
+  "create": {
+    "extract": {
+      "unArchive": {
+        "blobId": "Barchive123",
+        "type": "application/zip",
+        "parentNodeId": "dir456"
+      }
+    }
+  }
+}, "R1"]]
+```
+
+The response includes a `nodeId` for each created entry:
+
+```json
+[["Blob/convert", {
+  "accountId": "account1",
+  "created": {
+    "extract": {
+      "id": "Barchive123",
+      "type": "application/zip",
+      "size": 104857,
+      "entries": [
+        {
+          "name": "docs/",
+          "entryType": "directory",
+          "nodeId": "node001"
+        },
+        {
+          "name": "docs/readme.txt",
+          "blobId": "Bdd001",
+          "entryType": "file",
+          "modified": "2026-03-01T12:00:00Z",
+          "mode": "0644",
+          "nodeId": "node002"
+        },
+        {
+          "name": "docs/logo.png",
+          "blobId": "Bdd002",
+          "entryType": "file",
+          "modified": "2026-02-15T09:30:00Z",
+          "mode": "0644",
+          "nodeId": "node003"
+        }
+      ]
+    }
+  },
+  "notCreated": {}
+}, "R1"]]
+```
+
 # Access Control
 
 Since nodes create a tree, ACLs created by shareWith automatically
@@ -868,11 +958,16 @@ EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
 
+**draft-ietf-jmap-filenode-10**
+
+* Added UnArchiveRecipe parentNodeId extension for extracting
+  archives directly into FileNode trees.
+
 **draft-ietf-jmap-filenode-09**
 
 * Renamed hasType filter to isFile and isDirectory (separate filters).
 * Renamed hasRole filter to role for consistency.
-* Defined glob matching syntax for nameMatch/typeMatch (*, ?, [...]).
+* Defined glob matching syntax for nameMatch/typeMatch.
 * Added fetchParents argument to FileNode/get.
 * Added descendantId filter to FileNode/query.
 
