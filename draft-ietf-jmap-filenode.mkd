@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-10
+docname: draft-ietf-jmap-filenode-11
 submissionType: IETF
 category: std
 updates: 8620
@@ -690,7 +690,7 @@ a full subdirectory:
 
 ## Extracting Archives into FileNodes
 
-When both capabilities are present, the UnArchiveRecipe
+When both capabilities are present, the ExtractRecipe
 (defined in {{JMAP-BLOBEXT}}) is extended with the following
 additional properties:
 
@@ -732,8 +732,8 @@ Extracting a zip file into a directory:
 [["Blob/convert", {
   "accountId": "account1",
   "create": {
-    "extract": {
-      "unArchive": {
+    "e1": {
+      "extract": {
         "blobId": "Barchive123",
         "type": "application/zip",
         "parentNodeId": "dir456"
@@ -749,7 +749,7 @@ The response includes a `nodeId` for each created entry:
 [["Blob/convert", {
   "accountId": "account1",
   "created": {
-    "extract": {
+    "e1": {
       "id": "Barchive123",
       "type": "application/zip",
       "size": 104857,
@@ -962,9 +962,13 @@ EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
 
+**draft-ietf-jmap-filenode-11**
+
+* Updated for blobext recipe renames (ExtractRecipe).
+
 **draft-ietf-jmap-filenode-10**
 
-* Added UnArchiveRecipe parentNodeId extension for extracting
+* Added ExtractRecipe parentNodeId extension for extracting
   archives directly into FileNode trees.
 
 **draft-ietf-jmap-filenode-09**
