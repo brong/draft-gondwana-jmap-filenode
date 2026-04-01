@@ -252,13 +252,11 @@ The filenode object has the following keys:
 * modified: "UTCDate\|null" (default: current server time)
 
     The date the node was last updated.  The server does not
-    automatically update this value; clients SHOULD provide an
-    updated value when modifying the node.  This gives clients
-    control over the timestamp, for example when preserving
-    original modification times during file synchronization.
-    If the client does not include `modified` in an update, the
-    server MUST leave it unchanged.  If the client sets `modified`
-    to null, the server MUST set it to the current server time.
+    automatically update this value.  If the client does not
+    include `modified` in an update, the server MUST leave it
+    unchanged.  If the client sets `modified` to null, the
+    server MUST set it to the current server time.  See
+    Implementation Considerations for usage guidance.
 
 * accessed: "UTCDate\|null" (default: current server time)
 
@@ -861,6 +859,19 @@ FileNode/changes query.  The server might report these as
 to know whether a node was previously visible to the user.
 
 # Implementation Considerations
+
+## Modification Timestamps
+
+Clients SHOULD provide an updated `modified` value when modifying
+a node.  This gives clients control over the timestamp, for
+example when preserving original modification times during file
+synchronization.  Clients that do not care about preserving
+timestamps can set `modified` to null to have the server use the
+current time.
+
+Clients may also choose to update the `modified` timestamp on a
+parent directory when moving a child node in or out, to reflect
+that the directory's contents have changed.
 
 ## Access Time Updates
 
