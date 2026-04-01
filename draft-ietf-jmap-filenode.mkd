@@ -1093,19 +1093,18 @@ The source of this document exists on github at: https://github.com/brong/draft-
 
 **draft-ietf-jmap-filenode-12**
 
-* Added nodeType property (file, directory, symlink) with IANA registry.
-* Added target property for symlink nodes.
-* Replaced isFile/isDirectory query filters with nodeType filter.
-* Added symlink security considerations.
-* Expanded myRights from mayRead/mayWrite/mayShare to
-  mayRead/mayAddChildren/mayRename/mayDelete/mayModifyContent/mayShare.
+* Added symlink support: nodeType property (file, directory,
+  symlink) with IANA registry, and target property (array of
+  path elements).
+* Replaced isFile/isDirectory query filters and sort with
+  nodeType.
+* Expanded myRights: replaced mayWrite with mayAddChildren,
+  mayRename, mayDelete, mayModifyContent.
 * Added forbiddenNameChars and forbiddenNodeNames capabilities;
   removed hardcoded name restrictions from spec.
-* Added changed (server-set) timestamp, auto-updated on any
-  property mutation.
-* Changed symlink target from path string to array of path elements.
-* Added filename character restriction guidance to Implementation
-  Considerations.
+* Added changed (server-set) timestamp.
+* Added Implementation Considerations section with guidance on
+  timestamps, access times, and filename restrictions.
 
 **draft-ietf-jmap-filenode-11**
 
