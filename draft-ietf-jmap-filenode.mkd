@@ -290,6 +290,15 @@ The filenode object has the following keys:
     time.
 
 
+* changed: "UTCDate" (server-set)
+
+    The date the server last recorded a change to any property
+    of this node.  The server MUST automatically update this
+    value whenever any property of the node is modified,
+    including `blobId`, `name`, `parentId`, `shareWith`,
+    `executable`, and all other mutable properties.  This is
+    not settable by clients.
+
 * executable: "Boolean" (default: false)
 
     If true, the node should be treated as an executable by
@@ -1084,6 +1093,8 @@ The source of this document exists on github at: https://github.com/brong/draft-
   mayRead/mayAddChildren/mayRename/mayDelete/mayModifyContent/mayShare.
 * Added forbiddenNameChars and forbiddenNodeNames capabilities;
   removed hardcoded name restrictions from spec.
+* Added changed (server-set) timestamp, auto-updated on any
+  property mutation.
 * Changed symlink target from path string to array of path elements.
 * Added filename character restriction guidance to Implementation
   Considerations.
