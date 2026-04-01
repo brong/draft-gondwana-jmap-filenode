@@ -97,6 +97,23 @@ on server capabilities and permissions for that account:
     FileNode.  This MUST be at least 100, although it is recommended
     servers allow more.
 
+* forbiddenNameChars: "String\|null"
+
+    A string where each character is forbidden in FileNode names.
+    If null, the server does not restrict name characters beyond
+    the requirement that names be non-empty Net-Unicode strings.
+    The server MUST reject names containing any of these
+    characters with an "invalidProperties" error.
+
+* forbiddenNodeNames: "String[]\|null"
+
+    An array of complete names that the server will not accept
+    as FileNode names, compared case-insensitively.  For
+    example, `[".", "..", "CON", "PRN", "AUX", "NUL"]` would
+    forbid common path-traversal names and Windows reserved
+    device names.  If null, the server does not forbid any
+    specific names.
+
 * fileNodeQuerySortOptions: "String[]"
 
     A list of all the values the server supports for the "property"
@@ -143,6 +160,12 @@ on server capabilities and permissions for that account:
     "fileNodeQuerySortOptions": [
       "name", "type", "size", "created", "modified",
       "nodeType", "tree"
+    ],
+    "forbiddenNameChars": "/<>:\"\\|?*",
+    "forbiddenNodeNames": [".", "..", "CON", "PRN", "AUX",
+      "NUL", "COM0", "COM1", "COM2", "COM3", "COM4", "COM5",
+      "COM6", "COM7", "COM8", "COM9", "LPT0", "LPT1", "LPT2",
+      "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
     ],
     "mayCreateTopLevelFileNode": false,
     "webTrashUrl": "https://files.example.com/trash",
@@ -195,15 +218,18 @@ The filenode object has the following keys:
     blob referenced by a FileNode MUST NOT be expired or garbage
     collected by the server while the FileNode exists.
 
-* target: "String\|null"
+* target: "String[]\|null"
 
-    The target path for symlink nodes.  MUST be non-null for
-    symlinks.  MUST be null for file and directory nodes.  The
-    target is a relative or absolute path within the tree, using
-    `/` as the path separator.  The target is not required to
-    resolve to an existing node (symlinks may dangle).  The
-    target is mutable — updating it changes where the symlink
-    points.
+    The target path for symlink nodes, as an array of path
+    elements.  MUST be non-null for symlinks.  MUST be null for
+    file and directory nodes.  Each element is a node name in
+    the path.  An empty string as the first element indicates
+    an absolute path from the root of the tree; otherwise the
+    path is relative to the symlink's parent.  An element of
+    ".." refers to the parent directory.  The target is not
+    required to resolve to an existing node (symlinks may
+    dangle).  The target is mutable — updating it changes where
+    the symlink points.
 
 * size: "UnsignedInt\|null" (server-set)
 
@@ -221,15 +247,11 @@ The filenode object has the following keys:
     Net-Unicode string {{UNICODE}} of at least 1 character in length,
     subject to the maximum size given in the capability object.  There
     MUST NOT be two sibling FileNodes with both the same parent and
-    the same name.  Servers MAY reject names that violate server
-    policy (e.g., names containing control characters).  Further:
-
-    * The name MUST NOT be "." or ".."
-    * The name MUST NOT contain a "/"
-
-    Servers MAY reject names containing additional characters that
-    are problematic on common platforms (e.g. "\\", ":", "*", "?",
-    "\"", "<", ">", "\|") with an "invalidProperties" error.
+    the same name.  The server MUST reject names containing any
+    character listed in `forbiddenNameChars`, or matching any
+    entry in `forbiddenNodeNames` (case-insensitively), with an
+    "invalidProperties" error.  See Implementation Considerations
+    for guidance on which characters and names to forbid.
 
     A server MUST order creation and deletion operations within a
     single FileNode/set such that the sibling constraint is
@@ -878,6 +900,32 @@ Clients may also choose to update the `modified` timestamp on a
 parent directory when moving a child node in or out, to reflect
 that the directory's contents have changed.
 
+## Filename Character Restrictions
+
+Servers should set `forbiddenNameChars` and `forbiddenNodeNames`
+to include characters and names that are problematic for their
+storage backend and for the broadest set of clients.
+
+The following characters are problematic on common platforms:
+
+* Windows: `<`, `>`, `:`, `"`, `\`, `|`, `?`, `*`, and
+  control characters (U+0000-U+001F).  Windows also forbids
+  trailing dots and spaces in names.
+* macOS: `:` (HFS+ legacy; displayed as `/` in Finder).
+* Linux: the null byte (U+0000).
+
+The following names are problematic:
+
+* All platforms: `.` and `..` (path traversal).
+* Windows: reserved device names CON, PRN, AUX, NUL,
+  COM0-COM9, and LPT0-LPT9.  These are reserved regardless
+  of file extension (e.g., "CON.txt" is also forbidden).
+
+A server targeting broad client compatibility should include
+at least `/<>:"\|?*` in `forbiddenNameChars` and at least
+`.`, `..`, and the Windows reserved names in
+`forbiddenNodeNames`.
+
 ## Access Time Updates
 
 Updating `accessed` on every file read generates significant
@@ -894,10 +942,11 @@ All security considerations from {{JMAP-CORE}} apply to this document.
 
 ## Path Traversal
 
-FileNode names MUST NOT contain "/" or be "." or "..".  Servers MUST
-enforce these constraints.  Clients that reconstruct filesystem paths
-from FileNode hierarchies MUST validate the resulting paths and reject
-any that would escape the intended directory tree.
+Clients that reconstruct filesystem paths from FileNode hierarchies
+MUST validate the resulting paths and reject any that would escape
+the intended directory tree.  Servers SHOULD include `/` in
+`forbiddenNameChars` and `.` and `..` in `forbiddenNodeNames` to
+prevent path traversal attacks via node names.
 
 ## Symlink Targets
 
@@ -1033,6 +1082,11 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * Added symlink security considerations.
 * Expanded myRights from mayRead/mayWrite/mayShare to
   mayRead/mayAddChildren/mayRename/mayDelete/mayModifyContent/mayShare.
+* Added forbiddenNameChars and forbiddenNodeNames capabilities;
+  removed hardcoded name restrictions from spec.
+* Changed symlink target from path string to array of path elements.
+* Added filename character restriction guidance to Implementation
+  Considerations.
 
 **draft-ietf-jmap-filenode-11**
 
