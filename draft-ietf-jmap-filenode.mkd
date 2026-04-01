@@ -269,13 +269,6 @@ The filenode object has the following keys:
     If set to null, the server MUST set it to the current server
     time.
 
-    Updating `accessed` on every read generates significant API
-    traffic for little value.  Clients SHOULD use a "relatime"
-    strategy: only update `accessed` if the current value is
-    older than `modified`, or if more than 24 hours have elapsed
-    since the last `accessed` update.  Clients SHOULD batch
-    access time updates with their next JMAP request rather than
-    making a dedicated call.
 
 * executable: "Boolean" (default: false)
 
@@ -866,6 +859,18 @@ been told of a large number of new Nodes in response to a
 FileNode/changes query.  The server might report these as
 "created" or "updated" — it is not always possible for the server
 to know whether a node was previously visible to the user.
+
+# Implementation Considerations
+
+## Access Time Updates
+
+Updating `accessed` on every file read generates significant
+API traffic for little value.  Clients are encouraged to use a
+"relatime" strategy similar to modern POSIX filesystems: only
+update `accessed` if the current value is older than `modified`,
+or if more than 24 hours have elapsed since the last `accessed`
+update.  Clients should batch access time updates with their
+next JMAP request rather than making a dedicated call.
 
 # Security considerations
 
