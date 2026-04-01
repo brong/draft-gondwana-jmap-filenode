@@ -909,6 +909,14 @@ Clients may also choose to update the `modified` timestamp on a
 parent directory when moving a child node in or out, to reflect
 that the directory's contents have changed.
 
+## Timestamp Precision
+
+The UTCDate type (RFC 3339) supports fractional seconds.
+Servers SHOULD include sub-second precision in `created`,
+`modified`, `accessed`, and `changed` timestamps where their
+storage backend supports it.  Clients MUST preserve fractional
+seconds when round-tripping timestamps back to the server.
+
 ## Filename Character Restrictions
 
 Servers should set `forbiddenNameChars` and `forbiddenNodeNames`
