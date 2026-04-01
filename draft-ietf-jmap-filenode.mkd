@@ -287,10 +287,15 @@ The filenode object has the following keys:
     The set of rights (ACLs) the user has in relation to this
     node.  A **FilesRights** object has the following properties:
 
-    * mayRead: `Boolean` The user may read the contents of this
-      node.
-    * mayWrite: `Boolean` The user may modify the properties of
-      this node, including renaming or deleting children.
+    * mayRead: `Boolean` The user may read the properties and
+      blob content of this node.
+    * mayAddChildren: `Boolean` The user may create child nodes
+      in this directory.
+    * mayRename: `Boolean` The user may rename or move this node.
+    * mayDelete: `Boolean` The user may destroy this node.
+    * mayModifyContent: `Boolean` The user may update the
+      content-related properties of this node (`blobId`, `type`,
+      `target`, `modified`, `accessed`, `executable`).
     * mayShare: `Boolean` The user may change the sharing of this
       node (see {{JMAP-SHARING}}).
 
@@ -562,7 +567,7 @@ with the FileNode id.  This is only valid for file nodes (those
 with a non-null blobId); requests targeting directory nodes MUST
 be rejected with an HTTP 400 status.
 
-The client MUST have `mayWrite` permission on the node.
+The client MUST have `mayModifyContent` permission on the node.
 Requests without sufficient permission MUST be rejected with an
 HTTP 403 status.  Authentication uses the same mechanism as other
 JMAP HTTP endpoints.
@@ -633,7 +638,7 @@ properties:
   The `blobId` and `name` are taken from the FileNode.  The
   FileNode's `created` and `modified` timestamps map to the
   archive entry's time metadata.  The FileNode's
-  `myRights` (specifically the `mayWrite` right) and the
+  `myRights` (specifically the `mayModifyContent` right) and the
   `executable` property inform the `mode` field in the
   archive entry (e.g., permissions and executable bit).
   If the ArchiveEntry also provides explicit values for
@@ -734,7 +739,7 @@ entry.
 
 If `parentNodeId` references a FileNode that does not exist,
 is not a directory, or for which the user does not have
-`mayWrite` permission, the server MUST reject the Blob/convert
+`mayAddChildren` permission, the server MUST reject the Blob/convert
 creation with an appropriate SetError (`notFound`,
 `invalidProperties`, or `forbidden`).
 
@@ -1026,6 +1031,8 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * Added target property for symlink nodes.
 * Replaced isFile/isDirectory query filters with nodeType filter.
 * Added symlink security considerations.
+* Expanded myRights from mayRead/mayWrite/mayShare to
+  mayRead/mayAddChildren/mayRename/mayDelete/mayModifyContent/mayShare.
 
 **draft-ietf-jmap-filenode-11**
 
