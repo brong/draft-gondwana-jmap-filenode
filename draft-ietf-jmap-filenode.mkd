@@ -342,6 +342,26 @@ The filenode object has the following keys:
 
 ## FileNode Methods
 
+### FileNode/get
+
+This is a standard Foo/get method, with the following additional
+request argument:
+
+* fetchParents: "Boolean" (default: false)
+
+    If true, the server returns all ancestor nodes of the
+    requested ids in addition to the requested nodes themselves.
+    This allows a client to reconstruct the full path to each
+    requested node in a single call.  Ancestor nodes that have
+    already been included (either because they were explicitly
+    requested or because they are ancestors of multiple requested
+    nodes) are not duplicated.  The ancestors are returned as
+    additional entries in the `list` array.
+
+### FileNode/changes
+
+This is a standard Foo/changes method.
+
 ### FileNode/set
 
 This is a standard Foo/set method, with the following differences:
@@ -407,26 +427,6 @@ top-level arguments as FileNode/set, onDestroyRemoveChildren and
 onExists, with the same behaviour.
 
 Errors: the same additional errors as FileNode/set apply.
-
-### FileNode/get
-
-This is a standard Foo/get method, with the following additional
-request argument:
-
-* fetchParents: "Boolean" (default: false)
-
-    If true, the server returns all ancestor nodes of the
-    requested ids in addition to the requested nodes themselves.
-    This allows a client to reconstruct the full path to each
-    requested node in a single call.  Ancestor nodes that have
-    already been included (either because they were explicitly
-    requested or because they are ancestors of multiple requested
-    nodes) are not duplicated.  The ancestors are returned as
-    additional entries in the `list` array.
-
-### FileNode/changes
-
-This is a standard Foo/changes method.
 
 ### FileNode/query
 
@@ -589,7 +589,7 @@ It also supports the following additional sort properties:
 
 This is a standard Foo/queryChanges method.
 
-## Direct HTTP Write
+# Direct HTTP Write
 
 When the server advertises a `webWriteUrlTemplate`, clients can
 update a file node's content directly via HTTP without using
@@ -603,7 +603,7 @@ Requests without sufficient permission MUST be rejected with an
 HTTP 403 status.  Authentication uses the same mechanism as other
 JMAP HTTP endpoints.
 
-### PUT
+## PUT
 
 A PUT request replaces the entire content of the node.  The
 request body is the new content.  The Content-Type header sets
@@ -621,7 +621,7 @@ JSON body:
 }
 ~~~
 
-### PATCH
+## PATCH
 
 A PATCH request applies a partial modification to the node's
 current content.  The Content-Type of the request indicates the
@@ -647,6 +647,68 @@ is an HTTP 200 with the same JSON body as PUT:
 
 Servers that do not support a given patch format MUST respond
 with HTTP 415 (Unsupported Media Type).
+
+# Access Control
+
+Since nodes create a tree, ACLs created by shareWith automatically
+apply to children as well, so if `mayRead` is set on a node, all
+its child nodes are also readable.  The `myRights` property on
+every node reflects the derived rights for the current user,
+taking inheritance into account.
+
+When a `shareWith` change on a node causes the derived `myRights`
+to change for any descendant, the server MUST report those
+descendants as changed in FileNode/changes responses.  The server
+SHOULD NOT report descendants whose derived `myRights` did not
+actually change, but MAY do so if it cannot efficiently determine
+whether the derived values differ.
+
+If a server does not support changing access on non-directory
+nodes, it can set `mayShare` to false on those nodes, even if the
+parent directory has true.
+
+Nodes which are not "discoverable" MUST return notFound errors if
+fetched with FileNode/get and MUST NOT be returned in response to
+FileNode/query.  Nodes are discoverable in one of two ways:
+
+1. If the node or an ancestor of the node has mayRead true.
+
+2. If the node is an ancestor of a node which has mayRead true.
+
+In the second case, the node itself will have mayRead false, and appears
+only to give the full path to the visible nodes.  This means that
+a query with that node as the parent will only return those of its
+children which are otherwise discoverable through the second
+discoverability rule.
+
+This leads to a sharee seeing the full path to anything that they have
+access to, but nothing else.
+
+E.g. in a unix homedirectory environment where user Alice had shared
+the "forBob" folder, one might see, when logged in as Bob:
+
+~~~artwork
+/home
+  /alice
+    /shared
+      /forBob
+        file1.jpg
+        file2.txt
+        ...
+  /bob
+    bobfile.txt
+    ...
+~~~
+
+While Alice would see many more files and folders at the home
+directory level.
+
+This does lead to potentially large changes in the visible Node
+set, so when Alice first shared that directory, Bob would have
+been told of a large number of new Nodes in response to a
+FileNode/changes query.  The server might report these as
+"created" or "updated" — it is not always possible for the server
+to know whether a node was previously visible to the user.
 
 # Quotas
 
@@ -831,68 +893,6 @@ The response includes a `nodeId` for each created entry:
   "notCreated": {}
 }, "R1"]]
 ```
-
-# Access Control
-
-Since nodes create a tree, ACLs created by shareWith automatically
-apply to children as well, so if `mayRead` is set on a node, all
-its child nodes are also readable.  The `myRights` property on
-every node reflects the derived rights for the current user,
-taking inheritance into account.
-
-When a `shareWith` change on a node causes the derived `myRights`
-to change for any descendant, the server MUST report those
-descendants as changed in FileNode/changes responses.  The server
-SHOULD NOT report descendants whose derived `myRights` did not
-actually change, but MAY do so if it cannot efficiently determine
-whether the derived values differ.
-
-If a server does not support changing access on non-directory
-nodes, it can set `mayShare` to false on those nodes, even if the
-parent directory has true.
-
-Nodes which are not "discoverable" MUST return notFound errors if
-fetched with FileNode/get and MUST NOT be returned in response to
-FileNode/query.  Nodes are discoverable in one of two ways:
-
-1. If the node or an ancestor of the node has mayRead true.
-
-2. If the node is an ancestor of a node which has mayRead true.
-
-In the second case, the node itself will have mayRead false, and appears
-only to give the full path to the visible nodes.  This means that
-a query with that node as the parent will only return those of its
-children which are otherwise discoverable through the second
-discoverability rule.
-
-This leads to a sharee seeing the full path to anything that they have
-access to, but nothing else.
-
-E.g. in a unix homedirectory environment where user Alice had shared
-the "forBob" folder, one might see, when logged in as Bob:
-
-~~~artwork
-/home
-  /alice
-    /shared
-      /forBob
-        file1.jpg
-        file2.txt
-        ...
-  /bob
-    bobfile.txt
-    ...
-~~~
-
-While Alice would see many more files and folders at the home
-directory level.
-
-This does lead to potentially large changes in the visible Node
-set, so when Alice first shared that directory, Bob would have
-been told of a large number of new Nodes in response to a
-FileNode/changes query.  The server might report these as
-"created" or "updated" — it is not always possible for the server
-to know whether a node was previously visible to the user.
 
 # Implementation Considerations
 
