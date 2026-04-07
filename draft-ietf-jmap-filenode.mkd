@@ -253,11 +253,6 @@ The filenode object has the following keys:
     "invalidProperties" error.  See Implementation Considerations
     for guidance on which characters and names to forbid.
 
-    A server MUST order creation and deletion operations within a
-    single FileNode/set such that the sibling constraint is
-    retained at the end of the transaction, but replacing an
-    existing file can be done atomically.
-
 * type: "String\|null"
 
     The media type of the FileNode.  This MUST be `null` for
@@ -354,6 +349,11 @@ This is a standard Foo/set method, with the following differences:
 Since parentId creates a tree structure, an attempt to move a node
 to a parent for which this node is also an ancestor is an error,
 and an `invalidProperties` error will be returned.
+
+A server MUST order creation and deletion operations within a
+single FileNode/set such that the sibling name uniqueness
+constraint is retained at the end of the transaction, but
+replacing an existing file can be done atomically.
 
 There are these additional top level arguments:
 
@@ -663,7 +663,7 @@ When a server advertises both `urn:ietf:params:jmap:filenode` and
 (defined in {{JMAP-BLOBEXT}}) is extended with two additional
 properties:
 
-* nodeId: "Id|null"
+* nodeId: "Id\|null"
   A FileNode id.  When present, the server populates the
   archive entry from the referenced FileNode's properties.
   The `blobId` and `name` are taken from the FileNode.  The
