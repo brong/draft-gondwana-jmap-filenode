@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-12
+docname: draft-ietf-jmap-filenode-13
 submissionType: IETF
 category: std
 updates: 8620
@@ -1117,6 +1117,15 @@ to Expert Review ({{IANA-GUIDELINES}}).
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-13**
+
+* Reordered methods to get/changes/set/copy/query/queryChanges per
+  RFC 8620 convention.
+* Promoted Direct HTTP Write to top-level section.
+* Moved Access Control before Quotas and integrations.
+* Added caseInsensitiveNames capability and compareCaseInsensitively
+  parameter on FileNode/set.
 
 **draft-ietf-jmap-filenode-12**
 
