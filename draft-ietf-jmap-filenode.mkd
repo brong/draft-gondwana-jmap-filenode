@@ -135,6 +135,13 @@ on server capabilities and permissions for that account:
     The URL at which the folder with the "trash" role can be viewed
     on the web.  If null, there is no web URL available.
 
+* caseInsensitiveNames: "Boolean"
+
+    If true, the server treats file names as case-insensitive for
+    all name collision checks, including the sibling uniqueness
+    constraint and `onExists` handling.  The server preserves the
+    original case as provided by the client.
+
 * webUrlTemplate: "String\|null"
 
     A template by which any node can be viewed on the web, in URI
@@ -167,6 +174,7 @@ on server capabilities and permissions for that account:
       "COM6", "COM7", "COM8", "COM9", "LPT0", "LPT1", "LPT2",
       "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
     ],
+    "caseInsensitiveNames": false,
     "mayCreateTopLevelFileNode": false,
     "webTrashUrl": "https://files.example.com/trash",
     "webUrlTemplate": "https://files.example.com/view/{id}",
@@ -408,6 +416,15 @@ There are these additional top level arguments:
    clash, using an algorithm of its choice.  If the server changes
    the name, it MUST include the new "name" value in the created
    or updated response field for this id.
+
+* compareCaseInsensitively: "Boolean" (default: false)
+
+   If true, name collision checks (including `onExists` handling)
+   treat names as case-insensitive for this request.  This has no
+   effect if the server already has `caseInsensitiveNames` set to
+   true in its capability.  This allows clients syncing to
+   case-insensitive platforms to prevent name collisions that
+   would be problematic on those platforms.
 
 Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 
@@ -942,6 +959,16 @@ A server targeting broad client compatibility should include
 at least `/<>:"\|?*` in `forbiddenNameChars` and at least
 `.`, `..`, and the Windows reserved names in
 `forbiddenNodeNames`.
+
+## Case Sensitivity
+
+Windows and macOS filesystems are typically case-insensitive
+(treating "Foo" and "foo" as the same name), while Linux
+filesystems are typically case-sensitive.  Clients syncing to
+case-insensitive platforms should use `compareCaseInsensitively`
+on FileNode/set requests to prevent creating sibling nodes
+whose names differ only in case, as these cannot coexist on
+the target platform.
 
 ## Access Time Updates
 
