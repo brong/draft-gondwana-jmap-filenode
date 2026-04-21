@@ -1241,6 +1241,6 @@ The source of this document exists on github at: https://github.com/brong/draft-
 
 # Acknowledgements
 
-Neil Jenkins and the JMAP working group at the IETF.
+Ben Bucksch, Mauro De Gennaro, Seph Gentle, Arnt Gulbradson, Neil Jenkins, Ricardo Signes, and members of the JMAP Working Group at IETF.
 
 {backmatter}
