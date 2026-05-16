@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-13
+docname: draft-ietf-jmap-filenode-14
 submissionType: IETF
 category: std
 updates: 8620
@@ -416,6 +416,14 @@ There are these additional top level arguments:
    clash, using an algorithm of its choice.  If the server changes
    the name, it MUST include the new "name" value in the created
    or updated response field for this id.
+
+   If "newest", the server compares the `modified` timestamp of
+   the incoming item with that of the existing FileNode.  If the
+   incoming item has a strictly later `modified` value, the
+   existing node is destroyed and the operation proceeds as with
+   "replace".  Otherwise the operation is rejected as with null,
+   returning an "alreadyExists" error with the `existingId` of the
+   surviving node.
 
 * compareCaseInsensitively: "Boolean" (default: false)
 
@@ -839,8 +847,10 @@ additional properties:
   with an existing FileNode name under the same parent.  The
   values and semantics are the same as for FileNode/set (see
   above): null rejects with an `alreadyExists` SetError,
-  "replace" destroys the existing node, and "rename" gives the
-  new node a server-chosen name.
+  "replace" destroys the existing node, "rename" gives the new
+  node a server-chosen name, and "newest" replaces the existing
+  node only if the archive entry has a strictly later `modified`
+  timestamp.
 
 When `parentNodeId` is set, each ArchiveEntry in the response
 `entries` array includes an additional `nodeId` property
@@ -1117,6 +1127,10 @@ to Expert Review ({{IANA-GUIDELINES}}).
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-14**
+
+* Added "newest" value for `onExists`.
 
 **draft-ietf-jmap-filenode-13**
 
