@@ -186,15 +186,51 @@ on server capabilities and permissions for that account:
 # FileNode Data Type
 
 A FileNode is a set of metadata which behaves similarly to an inode in
-a filesystem.  In {{WEBDAV}} terminology a FileNode can refer to either
-a collection or a resource.
+a filesystem.  In {{WEBDAV}} terminology a Directory corresponds to
+a collection and a File to a resource.
 
 The following JMAP Methods are selected by the
 `urn:ietf:params:jmap:filenode` capability.
 
 ## FileNode objects
 
-The filenode object has the following keys:
+Every FileNode has a type, given by its `@type` property.  This
+document defines three types: "File", "Directory", and "SymLink".
+Each type has its own set of properties in addition to the
+properties common to all FileNodes.
+
+Properties that this document defines for one type MUST NOT
+appear on a FileNode of another type; they are omitted rather
+than set to null.  An attempt to create or update a FileNode
+that sets a property not defined for its `@type` to a non-null
+value is an "invalidProperties" error.  A null value for such a
+property is ignored, consistent with the PatchObject semantics
+of {{JMAP-CORE}}, Section 5.3.
+
+If the `properties` argument of a FileNode/get request includes
+a property that is defined for some FileNode type but not for a
+node's `@type`, the server omits that property from that node
+in the response.  The `@type` property is always returned, even
+if not explicitly requested.
+
+### Common properties
+
+The following properties are defined for every FileNode,
+regardless of its type:
+
+* @type: "String" (immutable)
+
+    The type of the node.  Values are registered in the "JMAP
+    FileNode Types" registry (see IANA Considerations).  This
+    document defines the values "File", "Directory", and
+    "SymLink".  This MUST be provided on creation.  Attempting to
+    change `@type` after creation is an "invalidProperties"
+    error.  A server MUST reject the creation of a node with an
+    `@type` it does not support with an "invalidProperties"
+    error.  Clients MUST be prepared to receive nodes with
+    `@type` values they do not recognise, and SHOULD NOT
+    interpret any of their properties other than the common
+    properties.
 
 * id: "Id" (immutable; server-set)
 
@@ -202,52 +238,11 @@ The filenode object has the following keys:
 
 * parentId: "Id\|null"
 
-    The Id of the parent node, or null if this is a top level node.
-
-* nodeType: "String" (immutable; default: server-inferred)
-
-    The type of node.  Values are registered in the "JMAP
-    FileNode Types" registry (see IANA Considerations).  This
-    document defines the following values: "file", "directory",
-    and "symlink".  This is immutable after creation.  If not
-    provided on creation, the server infers the type: "file" if
-    `blobId` is non-null, "symlink" if `target` is non-null,
-    "directory" otherwise.  Attempting to change `nodeType` after
-    creation is an "invalidProperties" error.
-
-* blobId: "Id\|null"
-
-    The blobId for the content of this node.  MUST be non-null
-    for file nodes (including zero byte files).  MUST be null
-    for directory and symlink nodes.  Creating or updating a
-    file node to have a null blobId is an "invalidProperties"
-    error.  Updating the blobId replaces the node's content;
-    the server MUST update `size` to match the new blob.  A
-    blob referenced by a FileNode MUST NOT be expired or garbage
-    collected by the server while the FileNode exists.
-
-* target: "String[]\|null"
-
-    The target path for symlink nodes, as an array of path
-    elements.  MUST be non-null for symlinks.  MUST be null for
-    file and directory nodes.  Each element is a node name in
-    the path.  An empty string as the first element indicates
-    an absolute path from the root of the tree; otherwise the
-    path is relative to the symlink's parent.  An element of
-    ".." refers to the parent directory.  The target is not
-    required to resolve to an existing node (symlinks may
-    dangle).  The target is mutable — updating it changes where
-    the symlink points.
-
-* size: "UnsignedInt\|null" (server-set)
-
-    The size in bytes of the associated blob data.  This MUST be
-    null for directory and symlink nodes, and non-null for file
-    nodes.  Size is optional on create and update, but if
-    provided it MUST match the size of the provided blobId.
-    If the client updates `blobId` without providing `size`, the
-    server sets `size` from the new blob and returns the size in
-    the "updated" response.
+    The Id of the parent node, or null if this is a top level
+    node.  The parent MUST be a node whose `@type` permits
+    children; of the types defined in this document, only
+    "Directory" does.  Setting parentId to any other node is an
+    "invalidProperties" error.
 
 * name: "String"
 
@@ -260,15 +255,6 @@ The filenode object has the following keys:
     entry in `forbiddenNodeNames` (case-insensitively), with an
     "invalidProperties" error.  See Implementation Considerations
     for guidance on which characters and names to forbid.
-
-* type: "String\|null"
-
-    The media type of the FileNode.  This MUST be `null` for
-    directory and symlink nodes, and non-null for file nodes.  Valid values are
-    found in the IANA media-types registry.  Servers MUST NOT
-    reject media types that are not recognised.  Servers MUST
-    reject media types if the value does not conform to the ABNF
-    of {{MEDIATYPE}} Section 4.2.
 
 * created: "UTCDate" (default: current server time)
 
@@ -302,11 +288,6 @@ The filenode object has the following keys:
     `executable`, and all other mutable properties.  This is
     not settable by clients.
 
-* executable: "Boolean" (default: false)
-
-    If true, the node should be treated as an executable by
-    operating systems that support this flag.
-
 * isSubscribed: "Boolean" (default: true)
 
     This property is stored per user, and if true, the node should
@@ -324,7 +305,8 @@ The filenode object has the following keys:
     * mayRead: `Boolean` The user may read the properties and
       blob content of this node.
     * mayAddChildren: `Boolean` The user may create child nodes
-      in this directory.
+      in this directory.  This is always false for nodes whose
+      `@type` does not permit children.
     * mayRename: `Boolean` The user may rename or move this node.
     * mayDelete: `Boolean` The user may destroy this node.
     * mayModifyContent: `Boolean` The user may update the
@@ -340,13 +322,112 @@ The filenode object has the following keys:
     if the user requesting the object does not have
     `myRights.mayShare`, or if the node is not shared with anyone.
 
-* role: "String\|null"
+### File properties
 
-    An indication that this directory has a special role.  The role
-    MUST be null for files.  A node with the "root" role should
-    have a null parentId.  Clients MUST ignore unrecognised role
-    values.  Values are registered in the "JMAP FileNode Roles"
-    registry (see IANA Considerations).
+A FileNode with `@type` "File" is a regular file with blob
+content.  In addition to the common properties, it has the
+following properties:
+
+* blobId: "Id"
+
+    The blobId for the content of this file.  This MUST be
+    provided on creation, including for zero byte files.
+    Setting blobId to null is an "invalidProperties" error.
+    Updating the blobId replaces the file's content; the server
+    MUST update `size` to match the new blob.  A blob referenced
+    by a FileNode MUST NOT be expired or garbage collected by the
+    server while the FileNode exists.
+
+* size: "UnsignedInt" (server-set)
+
+    The size in bytes of the associated blob data.  Size is
+    optional on create and update, but if provided it MUST match
+    the size of the provided blobId.  If the client updates
+    `blobId` without providing `size`, the server sets `size`
+    from the new blob and returns the size in the "updated"
+    response.
+
+* type: "String"
+
+    The media type of the file.  This MUST be provided on
+    creation.  Setting type to null is an "invalidProperties"
+    error.  Valid values are found in the IANA media-types
+    registry.  Servers MUST NOT reject media types that are not
+    recognised.  Servers MUST reject media types if the value
+    does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
+
+* executable: "Boolean" (default: false)
+
+    If true, the file should be treated as an executable by
+    operating systems that support this flag.
+
+### Directory properties
+
+A FileNode with `@type` "Directory" is a collection that may
+contain child nodes.  In addition to the common properties, it
+has the following property:
+
+* role: "String\|null" (default: null)
+
+    An indication that this directory has a special role.  A
+    directory with the "root" role should have a null parentId.
+    Clients MUST ignore unrecognised role values.  Values are
+    registered in the "JMAP FileNode Roles" registry (see IANA
+    Considerations).
+
+### SymLink properties
+
+A FileNode with `@type` "SymLink" is a symbolic link to another
+path in the tree.  In addition to the common properties, it has
+the following property:
+
+* target: "String[]"
+
+    The target path of the symlink, as an array of path
+    elements.  Each element is a node name in the path.  An
+    empty string as the first element indicates an absolute
+    path from the root of the tree; otherwise the path is
+    relative to the symlink's parent.  An element of ".." refers
+    to the parent directory.  The target is not required to
+    resolve to an existing node (symlinks may dangle).  The
+    target is mutable; updating it changes where the symlink
+    points.  This MUST be provided on creation.  Setting
+    target to null is an "invalidProperties" error.
+
+### FileNode Examples
+
+A directory, a file inside it, and a symlink pointing to the
+file.  Common properties other than `@type`, `id`, `parentId`,
+and `name` are omitted for brevity:
+
+~~~json
+[
+  {
+    "@type": "Directory",
+    "id": "n1",
+    "parentId": null,
+    "name": "Documents",
+    "role": "documents"
+  },
+  {
+    "@type": "File",
+    "id": "n3",
+    "parentId": "n1",
+    "name": "report.pdf",
+    "blobId": "Bfa61c0",
+    "size": 48576,
+    "type": "application/pdf",
+    "executable": false
+  },
+  {
+    "@type": "SymLink",
+    "id": "n7",
+    "parentId": null,
+    "name": "latest-report",
+    "target": ["Documents", "report.pdf"]
+  }
+]
+~~~
 
 ## FileNode Methods
 
@@ -412,6 +493,9 @@ There are these additional top level arguments:
    a nodeHasChildren error to this action unless
    onDestroyRemoveChildren is true.
 
+   Replacement does not depend on the `@type` of either node; a
+   node of any type may replace a node of any other type.
+
    If "rename", the server will change the "name" field to not
    clash, using an algorithm of its choice.  If the server changes
    the name, it MUST include the new "name" value in the created
@@ -441,7 +525,11 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
   SetError object MUST include an `existingId` property with the id
   of the existing FileNode.
 * "invalidProperties" — an attempt was made to move a node to a
-  descendant of itself, creating a cycle in the tree.
+  descendant of itself, creating a cycle in the tree, to make a
+  node the child of a node whose `@type` does not permit
+  children, to change the `@type` of a node, or to set a
+  property that is not defined for the node's `@type` to a
+  non-null value.
 * "nodeHasChildren" — a destroy was attempted on a FileNode that
   has children, and onDestroyRemoveChildren is false.
 
@@ -490,8 +578,8 @@ The following filter criteria are defined:
 
 * nodeType: "String"
 
-    A node type value.  Only nodes with precisely this nodeType
-    match this condition.
+    A node type value.  Only nodes whose `@type` is precisely
+    this value match this condition.
 
 * role: "String"
 
@@ -591,24 +679,37 @@ The following filter criteria are defined:
 
     Is equivalent to *body* OR *nameMatch* OR *typeMatch*.
 
+The blobId, isExecutable, minSize, maxSize, type, typeMatch, and
+body conditions match only nodes whose `@type` is "File".  The
+role and hasAnyRole conditions match only nodes whose `@type` is
+"Directory".  For example, a hasAnyRole condition of false
+matches only Directories without a role.
+
 It also supports the following additional sort properties:
 
 * tree:
 
-    Sort by tree; which means by name, but any directory/collection
-    node is immediately followed by the recursive application of
+    Sort by tree; which means by name, but any Directory node is
+    immediately followed by the recursive application of
     the same sort to its child nodes.  This is similar to the
     output of the `find` command on a filesystem with the depth
     parameter provided above.
 
 * nodeType:
 
-    Sort by node type.  Directories sort first, then symlinks,
-    then files.
+    Sort by `@type`.  Directories sort first, then symlinks,
+    then files, then nodes of any other `@type` ordered by the
+    `@type` value.
 
 * type:
 
-    Sorts directories first, and sorts by media type for files
+    Sort by media type.  Nodes whose `@type` is not "File" sort
+    before all Files.
+
+When sorting by a property that is not defined for a node's
+`@type` (for example `size` on a Directory), nodes without the
+property sort before nodes that have it when isAscending is
+true.
 
 ### FileNode/queryChanges
 
@@ -619,8 +720,8 @@ This is a standard Foo/queryChanges method.
 When the server advertises a `webWriteUrlTemplate`, clients can
 update a file node's content directly via HTTP without using
 FileNode/set.  The URL is constructed by expanding the template
-with the FileNode id.  This is only valid for file nodes (those
-with a non-null blobId); requests targeting directory nodes MUST
+with the FileNode id.  This is only valid for nodes with
+`@type` "File"; requests targeting any other type of node MUST
 be rejected with an HTTP 400 status.
 
 The client MUST have `mayModifyContent` permission on the node.
@@ -756,16 +857,17 @@ properties:
   The `blobId` and `name` are taken from the FileNode.  The
   FileNode's `created` and `modified` timestamps map to the
   archive entry's time metadata.  The FileNode's
-  `myRights` (specifically the `mayModifyContent` right) and the
-  `executable` property inform the `mode` field in the
+  `myRights` (specifically the `mayModifyContent` right) and,
+  for a File, the `executable` property inform the `mode` field in the
   archive entry (e.g., permissions and executable bit).
   If the ArchiveEntry also provides explicit values for
   any of these properties, the explicit values take
   precedence.  Mutually exclusive with providing `blobId`
-  directly when the FileNode is a file.
+  directly when the FileNode's `@type` is "File".
 
 * recurse: "Boolean" (default: false)
-  Only valid when the referenced FileNode is a directory.
+  Only valid when the referenced FileNode's `@type` is
+  "Directory".
   When true, the server recursively includes all children
   of the directory in the archive.  Each child entry's
   `name` is its full path relative to the directory.
@@ -832,15 +934,16 @@ When both capabilities are present, the ExtractRecipe
 additional properties:
 
 * parentNodeId: "Id\|null"
-  A FileNode id of a directory.  When present, the server
-  extracts the archive contents into this directory, creating
-  FileNode objects for each entry.  Subdirectories in the
-  archive are created as directory FileNodes.  File entries
-  become file FileNodes with their `blobId` set to the
-  extracted content.  The `created` and `modified` timestamps
-  are taken from the archive entry metadata.  If the archive
-  entry includes a `mode` field, the server SHOULD use it to
-  set the `executable` property on the created FileNode.
+  The id of a FileNode with `@type` "Directory".  When
+  present, the server extracts the archive contents into this
+  directory, creating FileNode objects for each entry.
+  Subdirectories in the archive are created as FileNodes with
+  `@type` "Directory".  File entries become FileNodes with
+  `@type` "File" and their `blobId` set to the extracted
+  content.  The `created` and `modified` timestamps are taken
+  from the archive entry metadata.  If the archive entry
+  includes a `mode` field, the server SHOULD use it to set the
+  `executable` property on the created FileNode.
 
 * onExists: "String\|null" (default: null)
   Controls the behaviour when an extracted entry would collide
@@ -858,7 +961,7 @@ containing the id of the FileNode that was created for that
 entry.
 
 If `parentNodeId` references a FileNode that does not exist,
-is not a directory, or for which the user does not have
+is not a Directory, or for which the user does not have
 `mayAddChildren` permission, the server MUST reject the Blob/convert
 creation with an appropriate SetError (`notFound`,
 `invalidProperties`, or `forbidden`).
@@ -1093,12 +1196,15 @@ Reference: this document
 IANA is requested to create a new "JMAP FileNode Types" registry
 with the following initial values.  New registrations are subject
 to Specification Required ({{IANA-GUIDELINES}}).
+A registration MUST reference a specification that defines the
+properties specific to the type and whether nodes of the type
+may have children.
 
 | Type      | Description                                    | Reference      |
 |-----------|------------------------------------------------|----------------|
-| file      | A regular file with blob content               | this document  |
-| directory | A collection that may contain child nodes      | this document  |
-| symlink   | A symbolic link to another path in the tree    | this document  |
+| File      | A regular file with blob content               | this document  |
+| Directory | A collection that may contain child nodes      | this document  |
+| SymLink   | A symbolic link to another path in the tree    | this document  |
 
 ## JMAP FileNode Roles Registry
 
@@ -1127,6 +1233,16 @@ to Expert Review ({{IANA-GUIDELINES}}).
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-15**
+
+* Replaced `nodeType` with an `@type` property
+  (File, Directory, SymLink).  Each type defines only the
+  properties relevant to it; properties of other types are
+  omitted rather than null.  `@type` is now required on
+  creation instead of being inferred.
+* Moved `blobId`, `size`, `type`, and `executable` to File,
+  `role` to Directory, and `target` to SymLink.
 
 **draft-ietf-jmap-filenode-14**
 
