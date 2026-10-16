@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-14
+docname: draft-ietf-jmap-filenode-15
 submissionType: IETF
 category: std
 updates: 8620
@@ -25,6 +25,8 @@ normative:
     URI-TEMPLATE: RFC6570
     IANA-GUIDELINES: RFC8126
     JMAP-BLOBEXT: I-D.draft-gondwana-jmap-blobext
+    JMAP-CONDITIONAL: I-D.draft-gondwana-jmap-conditional
+    JMAP-METADATA: I-D.draft-ietf-jmap-metadata
 
 informative:
     CALDAV: RFC4791
@@ -87,7 +89,7 @@ on server capabilities and permissions for that account:
 
 * maxFileNodeDepth: "UnsignedInt\|null"
 
-    The maximum depth of the FileNode hierarchy (i.e., one more than
+    The maximum depth of the FileNode hierarchy (that is, one more than
     the maximum number of ancestors a FileNode may have), or null for
     no limit.
 
@@ -105,7 +107,7 @@ on server capabilities and permissions for that account:
     The server MUST reject names containing any of these
     characters with an "invalidProperties" error.
 
-* forbiddenNodeNames: "String[]\|null"
+* forbiddenNodeNames: "String\[\]\|null"
 
     An array of complete names that the server will not accept
     as FileNode names, compared case-insensitively.  For
@@ -114,7 +116,7 @@ on server capabilities and permissions for that account:
     device names.  If null, the server does not forbid any
     specific names.
 
-* fileNodeQuerySortOptions: "String[]"
+* fileNodeQuerySortOptions: "String\[\]"
 
     A list of all the values the server supports for the "property"
     field of the Comparator object in a "FileNode/query" sort (see
@@ -292,7 +294,7 @@ regardless of its type:
 
     This property is stored per user, and if true, the node should
     be displayed to the current user.  Some servers may not allow
-    this field to be changed for some or all nodes, e.g. only for
+    this field to be changed for some or all nodes, for example only for
     directories, or only for nodes on which the shareWith ACL is
     actually set for this user, not nodes which inherit their ACL
     from a parent.
@@ -381,7 +383,7 @@ A FileNode with `@type` "SymLink" is a symbolic link to another
 path in the tree.  In addition to the common properties, it has
 the following property:
 
-* target: "String[]"
+* target: "String\[\]"
 
     The target path of the symlink, as an array of path
     elements.  Each element is a node name in the path.  An
@@ -460,8 +462,8 @@ to a parent for which this node is also an ancestor is an error,
 and an `invalidProperties` error will be returned.
 
 A server MUST order creation and deletion operations within a
-single FileNode/set such that the sibling name uniqueness
-constraint is retained at the end of the transaction, but
+single FileNode/set such that the uniqueness of sibling names is
+retained at the end of the transaction, but
 replacing an existing file can be done atomically.
 
 There are these additional top level arguments:
@@ -508,6 +510,29 @@ There are these additional top level arguments:
    "replace".  Otherwise the operation is rejected as with null,
    returning an "alreadyExists" error with the `existingId` of the
    surviving node.
+
+   If "unchanged", the operation proceeds as with "replace", but
+   only if a precondition on the colliding node is satisfied.  The
+   client supplies this precondition in the "ifUnchangedBy" argument
+   ({{JMAP-CONDITIONAL}}).  The server matches it against the node
+   that occupies the contested name at the start of the method,
+   found by that node's current id: the server evaluates the
+   "ifUnchangedBy" entry whose key is that id.  If "ifUnchangedBy"
+   contains no entry for the occupant's id, or that entry's
+   precondition is not satisfied, the server MUST NOT replace the
+   node.  It rejects the operation as with null, and returns an
+   "alreadyExists" error with the `existingId` of the surviving
+   node.  This binds the replacement to the one node the client
+   expected.  If a concurrent change has moved a different node into
+   the contested name, its id does not match the supplied
+   precondition.  The server then refuses the replacement, and does
+   not destroy a node the client never saw.  As with "replace", if
+   the node to replace is a directory with children, the server MUST
+   return a "nodeHasChildren" error unless onDestroyRemoveChildren
+   is true; it MUST also include the id of the replaced node in the
+   destroyed response list.  A server that does not support
+   {{JMAP-CONDITIONAL}} MUST reject "unchanged" with an
+   "invalidArguments" error.
 
 * compareCaseInsensitively: "Boolean" (default: false)
 
@@ -652,7 +677,7 @@ The following filter criteria are defined:
     The following special patterns are defined: `*` matches any
     sequence of characters, `?` matches any single character,
     and a pair of brackets matches any single character in the
-    bracketed set (e.g., `[abc]` matches "a", "b", or "c";
+    bracketed set (for example, `[abc]` matches "a", "b", or "c";
     `[a-z]` matches any lowercase letter; `[!abc]` or `[^abc]`
     matches any character not in the set).  All other characters match
     literally.  The match is case-insensitive.
@@ -752,7 +777,7 @@ JSON body:
 A PATCH request applies a partial modification to the node's
 current content.  The Content-Type of the request indicates the
 patch format.  The supported patch formats are those listed in
-the `supportedPatchTypes` capability of {{JMAP-BLOBEXT}} (e.g.,
+the `supportedPatchTypes` capability of {{JMAP-BLOBEXT}} (for example,
 `application/x-rdiff-delta`, `application/x-bsdiff`,
 `text/x-diff`).  The server applies the delta to the node's
 current blob to produce the new content.
@@ -810,7 +835,7 @@ discoverability rule.
 This leads to a sharee seeing the full path to anything that they have
 access to, but nothing else.
 
-E.g. in a unix homedirectory environment where user Alice had shared
+For example, in a unix homedirectory environment where user Alice had shared
 the "forBob" folder, one might see, when logged in as Bob:
 
 ~~~artwork
@@ -859,7 +884,7 @@ properties:
   archive entry's time metadata.  The FileNode's
   `myRights` (specifically the `mayModifyContent` right) and,
   for a File, the `executable` property inform the `mode` field in the
-  archive entry (e.g., permissions and executable bit).
+  archive entry (for example, permissions and executable bit).
   If the ArchiveEntry also provides explicit values for
   any of these properties, the explicit values take
   precedence.  Mutually exclusive with providing `blobId`
@@ -1024,6 +1049,96 @@ The response includes a `nodeId` for each created entry:
 }, "R1"]]
 ```
 
+# Extended Attributes and Named Streams
+
+Operating systems associate named side-channel data with files: POSIX extended
+attributes (getxattr/setxattr), macOS extended attributes (including Finder
+tags and the quarantine flag) and resource forks, NTFS and SMB2 alternate data
+streams, and NFSv4 named attributes.  A FileNode carries these using the JMAP
+Object Metadata extension ({{JMAP-METADATA}}).  A server that supports named
+attributes on file nodes lists "FileNode" in the "dataTypes" of its
+`urn:ietf:params:jmap:metadata` capability.  Clients then read and write the
+attributes through the "metadata" property, and through the "privateMetadata"
+property where the server sets `supportsPrivate`.  That extension adds both
+properties to the FileNode object.
+
+## The "xattr" namespace
+
+This document defines the "xattr" namespace for the "metadata" and
+"privateMetadata" properties.  Its value is an object mapping an attribute name
+to an **XattrValue** object.  The attribute name is the platform-native name of
+the attribute or stream, stored verbatim (for example "user.comment",
+"com.apple.metadata:_kMDItemUserTags", or "Zone.Identifier").  Servers and
+clients MUST NOT normalise attribute names across platforms.  The server keeps
+an attribute that one platform writes, even where another platform has no
+equivalent for it.
+
+An **XattrValue** object has the following properties:
+
+* data: "String\|null"
+
+    The attribute value as a UTF-8 string.  Used for small textual attributes.
+
+* blobId: "Id\|null"
+
+    The blobId of a blob holding the attribute value.  Used for large or
+    binary attributes (for example a resource fork, or a multi-kilobyte
+    stream).  A blob referenced by an XattrValue MUST NOT be expired or garbage
+    collected by the server while the FileNode references it, in the same way
+    as a file node's content blob.
+
+* type: "String\|null" (default: null)
+
+    An optional media type ({{MEDIATYPE}}) for the attribute value.
+
+An XattrValue MUST contain exactly one of "data" or "blobId"; providing both,
+or neither, is an "invalidProperties" error.  Binary attributes small enough to
+carry inline are still referenced by "blobId" rather than base64-encoded in
+"data".
+
+The value nests one object level below the namespace value (attribute name to
+XattrValue).  A server that supports the "xattr" namespace MUST advertise a
+"maxDepth" for FileNode of at least 1, or null (no limit).
+
+Attributes shared with every reader of the node (for example a quarantine flag)
+are stored under "metadata".  Attributes private to the current user (for
+example that user's own tags) are stored under "privateMetadata" where the
+server supports it.
+
+Example — a small textual attribute and a large binary one:
+
+~~~json
+{
+  "metadata": {
+    "xattr": {
+      "user.comment": { "data": "draft copy" },
+      "com.apple.ResourceFork": {
+        "blobId": "G_fork_9c2",
+        "type": "application/octet-stream"
+      }
+    }
+  }
+}
+~~~
+
+To set or remove a single attribute without disturbing the others, a client
+patches the path directly.  RFC 6901 escaping applies to any "/" or "~" in the
+attribute name ("/" as "~1", "~" as "~0"):
+
+~~~json
+[["FileNode/set", {
+  "accountId": "u1",
+  "update": {
+    "f42": {
+      "metadata/xattr/Zone.Identifier": { "data": "ZoneId=3" }
+    }
+  }
+}, "0"]]
+~~~
+
+Setting an attribute's path to null removes it, following the "metadata" patch
+semantics of {{JMAP-METADATA}}.
+
 # Implementation Considerations
 
 ## Modification Timestamps
@@ -1045,7 +1160,7 @@ The UTCDate type (RFC 3339) supports fractional seconds.
 Servers SHOULD include sub-second precision in `created`,
 `modified`, `accessed`, and `changed` timestamps where their
 storage backend supports it.  Clients MUST preserve fractional
-seconds when round-tripping timestamps back to the server.
+seconds when they send timestamps back to the server.
 
 ## Filename Character Restrictions
 
@@ -1066,7 +1181,7 @@ The following names are problematic:
 * All platforms: `.` and `..` (path traversal).
 * Windows: reserved device names CON, PRN, AUX, NUL,
   COM0-COM9, and LPT0-LPT9.  These are reserved regardless
-  of file extension (e.g., "CON.txt" is also forbidden).
+  of file extension (for example, "CON.txt" is also forbidden).
 
 A server targeting broad client compatibility should include
 at least `/<>:"\|?*` in `forbiddenNameChars` and at least
@@ -1224,6 +1339,27 @@ to Expert Review ({{IANA-GUIDELINES}}).
 | pictures  | Photos and images                                    | this document  |
 | videos    | Video files                                          | this document  |
 
+## JMAP Metadata Namespace Registration for "xattr"
+
+IANA is requested to register the "xattr" namespace in the "JMAP Metadata
+Namespaces" registry established by {{JMAP-METADATA}}:
+
+Namespace Identifier: xattr
+
+Value Type: `String[XattrValue]` — an object mapping an attribute name to an
+XattrValue object, as defined in "Extended Attributes and Named Streams" of
+this document.
+
+Applicable Properties: metadata, privateMetadata
+
+Applicable Data Types: FileNode
+
+Reference: this document
+
+Intended Usage: common
+
+Change Controller: IETF
+
 # TODO
 
 * create real-world clients to test this
@@ -1243,6 +1379,21 @@ The source of this document exists on github at: https://github.com/brong/draft-
   creation instead of being inferred.
 * Moved `blobId`, `size`, `type`, and `executable` to File,
   `role` to Directory, and `target` to SymLink.
+* Added "unchanged" value for `onExists`, replacing a colliding node only
+  when a precondition on that node, supplied via "ifUnchangedBy"
+  ({{JMAP-CONDITIONAL}}), is satisfied.  The precondition binds to the current
+  id of the node that occupies the contested name, so a client can only
+  replace the one node it expected.
+* Added Extended Attributes and Named Streams: file nodes carry POSIX xattrs,
+  macOS extended attributes, NTFS/SMB alternate data streams, and NFSv4 named
+  attributes via the JMAP Object Metadata extension ({{JMAP-METADATA}}),
+  defining the "xattr" namespace (attribute name to an XattrValue holding
+  either inline "data" or a "blobId" for large/binary values).  Registered
+  the "xattr" namespace with IANA.
+* Escaped bracket characters in "String\[\]" type signatures.
+* Editorial: applied a subset of ASD-STE100 Simplified Technical English —
+  removed "e.g."/"i.e.", split over-long sentences (notably `onExists`
+  "unchanged"), and reworded noun clusters and idioms.  No normative change.
 
 **draft-ietf-jmap-filenode-14**
 
