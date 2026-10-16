@@ -116,6 +116,14 @@ on server capabilities and permissions for that account:
     device names.  If null, the server does not forbid any
     specific names.
 
+* supportedNodeTypes: "String\[\]"
+
+    The `@type` values that the server allows clients to create
+    in this account (see "FileNode objects" below).  This MUST
+    include "Directory" and "File".  It MAY include "SymLink" and
+    any other value registered in the "JMAP FileNode Types"
+    registry.  Clients MUST ignore values they do not recognise.
+
 * fileNodeQuerySortOptions: "String\[\]"
 
     A list of all the values the server supports for the "property"
@@ -154,7 +162,7 @@ on server capabilities and permissions for that account:
 * webWriteUrlTemplate: "String\|null"
 
     A URI Template (level 1) {{URI-TEMPLATE}} for writing content
-    to a file node.  The available variable is `{id}`, which is
+    to a FileNode with `@type` "File".  The available variable is `{id}`, which is
     the FileNode id.  If null, direct HTTP writes are not
     supported and clients must use FileNode/set to update content.
     See "Direct HTTP Write" below for the HTTP semantics.
@@ -167,9 +175,10 @@ on server capabilities and permissions for that account:
     "maxFileNodeDepth": 50,
     "maxSizeFileNodeName": 255,
     "fileNodeQuerySortOptions": [
-      "name", "type", "size", "created", "modified",
+      "name", "mediaType", "size", "created", "modified",
       "nodeType", "tree"
     ],
+    "supportedNodeTypes": ["Directory", "File", "SymLink"],
     "forbiddenNameChars": "/<>:\"\\|?*",
     "forbiddenNodeNames": [".", "..", "CON", "PRN", "AUX",
       "NUL", "COM0", "COM1", "COM2", "COM3", "COM4", "COM5",
@@ -205,15 +214,13 @@ Properties that this document defines for one type MUST NOT
 appear on a FileNode of another type; they are omitted rather
 than set to null.  An attempt to create or update a FileNode
 that sets a property not defined for its `@type` to a non-null
-value is an "invalidProperties" error.  A null value for such a
-property is ignored, consistent with the PatchObject semantics
-of {{JMAP-CORE}}, Section 5.3.
+value is an "invalidProperties" error.  The server MUST ignore a
+null value for such a property, both on create and on update.
+This lets a client send the same set of properties for nodes of
+any type.
 
-If the `properties` argument of a FileNode/get request includes
-a property that is defined for some FileNode type but not for a
-node's `@type`, the server omits that property from that node
-in the response.  The `@type` property is always returned, even
-if not explicitly requested.
+FileNode/get has additional rules for these properties (see
+"FileNode/get" below).
 
 ### Common properties
 
@@ -228,8 +235,8 @@ regardless of its type:
     "SymLink".  This MUST be provided on creation.  Attempting to
     change `@type` after creation is an "invalidProperties"
     error.  A server MUST reject the creation of a node with an
-    `@type` it does not support with an "invalidProperties"
-    error.  Clients MUST be prepared to receive nodes with
+    `@type` that is not in the `supportedNodeTypes` capability
+    with an "invalidProperties" error.  Clients MUST be prepared to receive nodes with
     `@type` values they do not recognise, and SHOULD NOT
     interpret any of their properties other than the common
     properties.
@@ -312,7 +319,7 @@ regardless of its type:
     * mayRename: `Boolean` The user may rename or move this node.
     * mayDelete: `Boolean` The user may destroy this node.
     * mayModifyContent: `Boolean` The user may update the
-      content-related properties of this node (`blobId`, `type`,
+      content-related properties of this node (`blobId`, `mediaType`,
       `target`, `modified`, `accessed`, `executable`).
     * mayShare: `Boolean` The user may change the sharing of this
       node (see {{JMAP-SHARING}}).
@@ -349,11 +356,11 @@ following properties:
     from the new blob and returns the size in the "updated"
     response.
 
-* type: "String"
+* mediaType: "String" (default: "application/octet-stream")
 
-    The media type of the file.  This MUST be provided on
-    creation.  Setting type to null is an "invalidProperties"
-    error.  Valid values are found in the IANA media-types
+    The media type of the file.  If not provided on creation,
+    the server sets it to "application/octet-stream".  Setting
+    mediaType to null is an "invalidProperties" error.  Valid values are found in the IANA media-types
     registry.  Servers MUST NOT reject media types that are not
     recognised.  Servers MUST reject media types if the value
     does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
@@ -418,7 +425,7 @@ and `name` are omitted for brevity:
     "name": "report.pdf",
     "blobId": "Bfa61c0",
     "size": 48576,
-    "type": "application/pdf",
+    "mediaType": "application/pdf",
     "executable": false
   },
   {
@@ -435,8 +442,16 @@ and `name` are omitted for brevity:
 
 ### FileNode/get
 
-This is a standard Foo/get method, with the following additional
-request argument:
+This is a standard Foo/get method, with the following differences:
+
+* The `@type` property is always returned, even if it is not
+  included in the `properties` argument.
+* If the `properties` argument includes a property that is
+  defined for some FileNode type but not for a node's `@type`,
+  the server omits that property from that node in the response.
+  It does not return the property with a null value.
+
+There is one additional request argument:
 
 * fetchParents: "Boolean" (default: false)
 
@@ -491,7 +506,7 @@ There are these additional top level arguments:
    If "replace", the existing item will be destroyed.  In this
    case, the server MUST include the id of the replaced item in
    the destroyed response list.  NOTE: if the replaced item is a
-   directory which has children, then the server MUST respond with
+   Directory which has children, then the server MUST respond with
    a nodeHasChildren error to this action unless
    onDestroyRemoveChildren is true.
 
@@ -527,7 +542,7 @@ There are these additional top level arguments:
    the contested name, its id does not match the supplied
    precondition.  The server then refuses the replacement, and does
    not destroy a node the client never saw.  As with "replace", if
-   the node to replace is a directory with children, the server MUST
+   the node to replace is a Directory with children, the server MUST
    return a "nodeHasChildren" error unless onDestroyRemoveChildren
    is true; it MUST also include the id of the replaced node in the
    destroyed response list.  A server that does not support
@@ -604,7 +619,9 @@ The following filter criteria are defined:
 * nodeType: "String"
 
     A node type value.  Only nodes whose `@type` is precisely
-    this value match this condition.
+    this value match this condition.  This filter, and the
+    `nodeType` sort property below, are named `nodeType` rather
+    than `@type`; they operate on the `@type` property.
 
 * role: "String"
 
@@ -682,15 +699,15 @@ The following filter criteria are defined:
     matches any character not in the set).  All other characters match
     literally.  The match is case-insensitive.
 
-* type: "String"
+* mediaType: "String"
 
-    A FileNode must have exactly the same octets in its type
+    A FileNode must have exactly the same octets in its mediaType
     property to match the condition.
 
-* typeMatch: "String"
+* mediaTypeMatch: "String"
 
-    Matches the *type* property of the node using the same glob
-    syntax as *nameMatch*.
+    Matches the *mediaType* property of the node using the same
+    glob syntax as *nameMatch*.
 
 * body: "String"
 
@@ -702,13 +719,16 @@ The following filter criteria are defined:
 
 * text: "String"
 
-    Is equivalent to *body* OR *nameMatch* OR *typeMatch*.
+    Is equivalent to *body* OR *nameMatch* OR *mediaTypeMatch*.
 
-The blobId, isExecutable, minSize, maxSize, type, typeMatch, and
+The blobId, isExecutable, minSize, maxSize, mediaType,
+mediaTypeMatch, and
 body conditions match only nodes whose `@type` is "File".  The
 role and hasAnyRole conditions match only nodes whose `@type` is
-"Directory".  For example, a hasAnyRole condition of false
-matches only Directories without a role.
+"Directory".  This applies to both true and false values.  For
+example, a hasAnyRole condition of false matches only Directories
+without a role, and an isExecutable condition of false matches
+only Files that are not executable.
 
 It also supports the following additional sort properties:
 
@@ -726,15 +746,11 @@ It also supports the following additional sort properties:
     then files, then nodes of any other `@type` ordered by the
     `@type` value.
 
-* type:
-
-    Sort by media type.  Nodes whose `@type` is not "File" sort
-    before all Files.
-
 When sorting by a property that is not defined for a node's
 `@type` (for example `size` on a Directory), nodes without the
 property sort before nodes that have it when isAscending is
-true.
+true.  Nodes that lack the property are ordered among themselves
+as if that Comparator were absent from the sort.
 
 ### FileNode/queryChanges
 
@@ -743,7 +759,7 @@ This is a standard Foo/queryChanges method.
 # Direct HTTP Write
 
 When the server advertises a `webWriteUrlTemplate`, clients can
-update a file node's content directly via HTTP without using
+update the content of a File directly via HTTP without using
 FileNode/set.  The URL is constructed by expanding the template
 with the FileNode id.  This is only valid for nodes with
 `@type` "File"; requests targeting any other type of node MUST
@@ -758,17 +774,18 @@ JMAP HTTP endpoints.
 
 A PUT request replaces the entire content of the node.  The
 request body is the new content.  The Content-Type header sets
-the media type of the node.
+the `mediaType` of the node.  If the request has no Content-Type
+header, the server sets `mediaType` to "application/octet-stream".
 
 On success, the server MUST update the node's `blobId`, `size`,
-and `type` properties, and return an HTTP 200 response with a
+and `mediaType` properties, and return an HTTP 200 response with a
 JSON body:
 
 ~~~json
 {
   "blobId": "Bnewblob123",
   "size": 48576,
-  "type": "text/plain"
+  "mediaType": "text/plain"
 }
 ~~~
 
@@ -783,16 +800,16 @@ the `supportedPatchTypes` capability of {{JMAP-BLOBEXT}} (for example,
 current blob to produce the new content.
 
 On success, the server MUST update the node's `blobId` and
-`size` properties.  The `type` is not changed unless the client
-includes an `X-FileNode-Type` header, in which case the server
-MUST update the node's `type` to the header value.  The response
-is an HTTP 200 with the same JSON body as PUT:
+`size` properties.  The server MUST NOT change the node's
+`mediaType`.  A client that needs to change it uses PUT, or
+updates `mediaType` with FileNode/set.  The response is an HTTP
+200 with the same JSON body as PUT:
 
 ~~~json
 {
   "blobId": "Bpatched456",
   "size": 49152,
-  "type": "text/plain"
+  "mediaType": "text/plain"
 }
 ~~~
 
@@ -898,6 +915,32 @@ properties:
   `name` is its full path relative to the directory.
   Directory names MUST include a trailing `/`.
 
+A FileNode with `@type` "SymLink", whether referenced directly by
+`nodeId` or reached by `recurse`, is added to the archive as an
+entry with `entryType` "symlink".  The server never follows the
+symlink.  The entry's `linkTarget` is the elements of the
+SymLink's `target` joined with "/".  An absolute target, whose
+first element is the empty string, therefore produces a
+`linkTarget` that starts with "/".
+
+Some archive formats cannot hold every node type.  For example,
+"application/zip" has no symlink entries.  The ArchiveRecipe
+(defined in {{JMAP-BLOBEXT}}) is extended with one additional
+property that controls how the server handles such nodes:
+
+* onUnsupportedEntry: "String" (default: "error")
+  This applies to any node, referenced by `nodeId` or reached by
+  `recurse`, that the archive format cannot represent.  If
+  "error", the server rejects the Blob/convert creation with an
+  "unsupportedEntry" SetError, and creates no archive.  If
+  "skip", the server leaves such nodes out of the archive.  Any
+  other value is an "invalidProperties" error.
+
+This property applies only to entries that the server builds
+from FileNodes.  An entry that the client gives in full, with an
+unsupported `entryType`, is still an "invalidProperties" error as
+{{JMAP-BLOBEXT}} requires.
+
 If `nodeId` references a FileNode that the user does not have
 permission to read, or that does not exist, the server MUST
 reject the Blob/convert creation with a `notFound` SetError.
@@ -970,6 +1013,29 @@ additional properties:
   includes a `mode` field, the server SHOULD use it to set the
   `executable` property on the created FileNode.
 
+  Symlink entries become FileNodes with `@type` "SymLink" if
+  "SymLink" is in the `supportedNodeTypes` capability.  The
+  server splits the entry's `linkTarget` on "/" to produce the
+  `target` path elements.  A `linkTarget` that starts with "/"
+  produces an empty string as the first element, which marks an
+  absolute path.  The server drops any other empty elements.
+
+  An entry is unsupported if the server cannot create a FileNode
+  for it.  These are symlink entries when "SymLink" is not in
+  `supportedNodeTypes`, and entries of any type that has no
+  FileNode equivalent ("hardlink", "fifo", "blockDevice", and
+  "charDevice").  The `onUnsupportedEntry` property controls how
+  the server handles them.
+
+* onUnsupportedEntry: "String" (default: "error")
+  If "error", the server rejects the Blob/convert creation with
+  an "unsupportedEntry" SetError, and creates no FileNodes.  If
+  "skip", the server does not create a FileNode for an
+  unsupported entry, and extracts the other entries as usual.  A
+  skipped entry still appears in the response `entries` array,
+  with a null `nodeId`.  Any other value is an
+  "invalidProperties" error.
+
 * onExists: "String\|null" (default: null)
   Controls the behaviour when an extracted entry would collide
   with an existing FileNode name under the same parent.  The
@@ -983,7 +1049,7 @@ additional properties:
 When `parentNodeId` is set, each ArchiveEntry in the response
 `entries` array includes an additional `nodeId` property
 containing the id of the FileNode that was created for that
-entry.
+entry, or null if the server skipped the entry.
 
 If `parentNodeId` references a FileNode that does not exist,
 is not a Directory, or for which the user does not have
@@ -1049,6 +1115,15 @@ The response includes a `nodeId` for each created entry:
 }, "R1"]]
 ```
 
+## The unsupportedEntry Error
+
+An "unsupportedEntry" SetError means that an archive or
+extraction with `onUnsupportedEntry` set to "error" found one or
+more entries that it could not handle.  The SetError object MUST
+include an `entryNames` property: a "String\[\]" that lists the
+`name` of each such entry.  For an archive, this is the name that
+the entry would have had in the archive.
+
 # Extended Attributes and Named Streams
 
 Operating systems associate named side-channel data with files: POSIX extended
@@ -1056,11 +1131,13 @@ attributes (getxattr/setxattr), macOS extended attributes (including Finder
 tags and the quarantine flag) and resource forks, NTFS and SMB2 alternate data
 streams, and NFSv4 named attributes.  A FileNode carries these using the JMAP
 Object Metadata extension ({{JMAP-METADATA}}).  A server that supports named
-attributes on file nodes lists "FileNode" in the "dataTypes" of its
+attributes on FileNodes lists "FileNode" in the "dataTypes" of its
 `urn:ietf:params:jmap:metadata` capability.  Clients then read and write the
 attributes through the "metadata" property, and through the "privateMetadata"
 property where the server sets `supportsPrivate`.  That extension adds both
-properties to the FileNode object.
+properties to the FileNode object.  They are common properties, available on
+FileNodes of every `@type`, because platforms also attach named attributes to
+directories and symbolic links.
 
 ## The "xattr" namespace
 
@@ -1085,7 +1162,7 @@ An **XattrValue** object has the following properties:
     binary attributes (for example a resource fork, or a multi-kilobyte
     stream).  A blob referenced by an XattrValue MUST NOT be expired or garbage
     collected by the server while the FileNode references it, in the same way
-    as a file node's content blob.
+    as the content blob of a File.
 
 * type: "String\|null" (default: null)
 
@@ -1257,7 +1334,7 @@ those users had been actively working with the shared files.
 ## Content Security
 
 Servers that perform content scanning or malware detection SHOULD
-scan blobs referenced by FileNode objects.  The `type` property is
+scan blobs referenced by FileNode objects.  The `mediaType` property is
 client-asserted and MUST NOT be trusted for security decisions;
 servers SHOULD independently verify content types where this matters.
 
@@ -1289,6 +1366,20 @@ Intended use: common
 Change Controller: IETF
 
 Description: The node being destroyed is still referenced by other nodes which have not been destroyed.
+
+Reference: this document
+
+## JMAP Error Codes registration for "unsupportedEntry"
+
+IANA is requested to register the "unsupportedEntry" JMAP Error Code as follows:
+
+JMAP Error Code: unsupportedEntry
+
+Intended use: common
+
+Change Controller: IETF
+
+Description: An archive or extraction found entries that the archive format or the server cannot represent, and the client asked for an error rather than for the entries to be skipped.
 
 Reference: this document
 
@@ -1379,6 +1470,29 @@ The source of this document exists on github at: https://github.com/brong/draft-
   creation instead of being inferred.
 * Moved `blobId`, `size`, `type`, and `executable` to File,
   `role` to Directory, and `target` to SymLink.
+* Renamed the File `type` property to `mediaType`, with a default
+  of "application/octet-stream", so that it is not confused with
+  `@type`.  Renamed the `type` and `typeMatch` filters to
+  `mediaType` and `mediaTypeMatch`, and the `type` sort property
+  to `mediaType`.
+* Added the `supportedNodeTypes` capability.
+* Removed the `X-FileNode-Type` header field.  A Direct HTTP Write
+  PATCH no longer changes `mediaType`; clients use PUT or FileNode/set.
+* Defined how SymLinks are archived (as symlink entries, never
+  followed) and extracted (created as SymLinks if supported).
+* Added `onUnsupportedEntry` ("error", the default, or "skip") to the
+  archive and extract recipes, for entries the archive format or the
+  server cannot represent, and the "unsupportedEntry" SetError.
+* Defined the order among nodes that lack a sort property.
+* Breaking change: the node type values changed from "file",
+  "directory", and "symlink" to "File", "Directory", and "SymLink".
+  Clients MUST now provide `@type` on creation.
+* FileNode/get always returns `@type`, and omits requested
+  properties that are not defined for a node's `@type`.
+* Query filters on type-specific properties now match only nodes
+  of that type, for both true and false values.  For example,
+  `hasAnyRole: false` no longer matches Files or SymLinks, and
+  `isExecutable: false` no longer matches Directories or SymLinks.
 * Added "unchanged" value for `onExists`, replacing a colliding node only
   when a precondition on that node, supplied via "ifUnchangedBy"
   ({{JMAP-CONDITIONAL}}), is satisfied.  The precondition binds to the current
