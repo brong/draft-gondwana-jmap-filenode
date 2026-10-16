@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-15
+docname: draft-ietf-jmap-filenode-16
 submissionType: IETF
 category: std
 updates: 8620
@@ -549,6 +549,16 @@ There are these additional top level arguments:
    {{JMAP-CONDITIONAL}} MUST reject "unchanged" with an
    "invalidArguments" error.
 
+   If the existing node is not discoverable by the user (see
+   "Access Control"), every value except "rename" fails with
+   "forbidden": the server MUST NOT destroy or compare against
+   that node, nor reveal its id.  Servers may return "forbidden"
+   for other reasons, such as a file name policy, so it does not
+   confirm that the name is taken.
+
+   "replace", "newest", and "unchanged" also require `mayDelete`
+   on the existing node, and fail with "forbidden" without it.
+
 * compareCaseInsensitively: "Boolean" (default: false)
 
    If true, name collision checks (including `onExists` handling)
@@ -561,9 +571,12 @@ There are these additional top level arguments:
 Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 
 * "alreadyExists" — a create or update would cause a name collision
-  with an existing sibling FileNode, and onExists is null.  The
-  SetError object MUST include an `existingId` property with the id
-  of the existing FileNode.
+  with a discoverable sibling FileNode, and onExists did not
+  resolve it.  The SetError object MUST include an `existingId`
+  property with the id of the existing FileNode.
+* "forbidden" — a name collision with a sibling the user cannot
+  discover, or an onExists replacement without `mayDelete` (see
+  onExists above).
 * "invalidProperties" — an attempt was made to move a node to a
   descendant of itself, creating a cycle in the tree, to make a
   node the child of a node whose `@type` does not permit
@@ -1460,6 +1473,13 @@ Change Controller: IETF
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-16**
+
+* A name collision with an undiscoverable node returns "forbidden"
+  without `existingId`; only onExists "rename" proceeds.  (Thanks to
+  Mehdi Kouhen.)
+* onExists replacement requires `mayDelete` on the existing node.
 
 **draft-ietf-jmap-filenode-15**
 
