@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-16
+docname: draft-ietf-jmap-filenode-17
 submissionType: IETF
 category: std
 updates: 8620
@@ -219,6 +219,10 @@ null value for such a property, both on create and on update.
 This lets a client send the same set of properties for nodes of
 any type.
 
+As in {{JMAP-CORE}} Section 5.3, setting a property that has a
+default value to null, on create or update, sets it to that
+default, unless the property's description says otherwise.
+
 FileNode/get has additional rules for these properties (see
 "FileNode/get" below).
 
@@ -359,9 +363,9 @@ following properties:
 * mediaType: "String" (default: "application/octet-stream")
 
     The media type of the file.  If not provided on creation,
-    the server sets it to "application/octet-stream".  Setting
-    mediaType to null is an "invalidProperties" error.  Valid values are found in the IANA media-types
-    registry.  Servers MUST NOT reject media types that are not
+    or if set to null, the server sets it to
+    "application/octet-stream".  Valid values are found in the
+    IANA media-types registry.  Servers MUST NOT reject media types that are not
     recognised.  Servers MUST reject media types if the value
     does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
 
@@ -1474,6 +1478,15 @@ EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
 
+**draft-ietf-jmap-filenode-17**
+
+* Setting a property with a default to null resets it to that
+  default (as in RFC 8620), for example `created` to the current
+  server time and `isSubscribed` to true.
+* Setting `mediaType` to null now resets it to
+  "application/octet-stream" rather than being an error.
+  (Thanks to Mark Atwood.)
+
 **draft-ietf-jmap-filenode-16**
 
 * A name collision with an undiscoverable node returns "forbidden"
@@ -1656,6 +1669,6 @@ The source of this document exists on github at: https://github.com/brong/draft-
 
 # Acknowledgements
 
-Ben Bucksch, Mauro De Gennaro, Seph Gentle, Arnt Gulbradson, Neil Jenkins, Ricardo Signes, and members of the JMAP Working Group at IETF.
+Mark Atwood, Ben Bucksch, Mauro De Gennaro, Seph Gentle, Arnt Gulbradson, Neil Jenkins, Mehdi Kouhen, Ricardo Signes, and members of the JMAP Working Group at IETF.
 
 {backmatter}
