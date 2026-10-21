@@ -224,7 +224,10 @@ default value to null, on create or update, sets it to that
 default, unless the property's description says otherwise.
 
 FileNode/get has additional rules for these properties (see
-"FileNode/get" below).
+"FileNode/get" below).  In particular, for a node the user can
+discover but not read, it returns null for most properties, even
+those whose type does not otherwise allow null (see "Access
+Control").
 
 ### Common properties
 
@@ -315,8 +318,9 @@ regardless of its type:
     The set of rights (ACLs) the user has in relation to this
     node.  A **FilesRights** object has the following properties:
 
-    * mayRead: `Boolean` The user may read the properties and
-      blob content of this node.
+    * mayRead: `Boolean` The user may read all properties and
+      the blob content of this node.  Without it, some properties
+      are still visible (see "Access Control").
     * mayAddChildren: `Boolean` The user may create child nodes
       in this directory.  This is always false for nodes whose
       `@type` does not permit children.
@@ -326,14 +330,20 @@ regardless of its type:
       content-related properties of this node (`blobId`, `mediaType`,
       `target`, `modified`, `accessed`, `executable`).
     * mayShare: `Boolean` The user may change the sharing of this
-      node (see {{JMAP-SHARING}}).
+      node (see {{JMAP-SHARING}}).  This is always false for nodes
+      whose `@type` does not permit children.
 
 * shareWith: "Id\[FilesRights]\|null"
 
     A map of userId to rights for users this node is shared with.
-    The owner of the node MUST NOT be in this set.  This is `null`
-    if the user requesting the object does not have
+    This is the access control list set on this node only; rights
+    inherited from ancestors do not appear in it (see "Access
+    Control").  The owner of the node MUST NOT be in this set.
+    This is `null` if the user requesting the object does not have
     `myRights.mayShare`, or if the node is not shared with anyone.
+    Only nodes whose `@type` permits children can be shared.  On
+    any other node this is always null, and setting it to a
+    non-null value is an "invalidProperties" error.
 
 ### File properties
 
@@ -573,6 +583,13 @@ There are these additional top level arguments:
    3. Only after these checks does the server compare `modified`
       for "newest" or evaluate the precondition for "unchanged".
 
+   4. If the existing node is to be replaced, the server then
+      checks its children: the operation fails with
+      "nodeHasChildren" if it has children and
+      onDestroyRemoveChildren is false, or with "forbidden" if
+      replacing it would remove nodes the user cannot discover
+      (see "Access Control").
+
    This order means that a user who lacks the rights to replace a
    node gets "forbidden" whatever the values of that node's
    properties, so the result cannot be used to learn properties
@@ -609,8 +626,8 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 ### FileNode/copy
 
 This is a standard Foo/copy function with the same additional
-top-level arguments as FileNode/set, onDestroyRemoveChildren and
-onExists, with the same behaviour.
+top-level arguments as FileNode/set (onDestroyRemoveChildren,
+onExists, and compareCaseInsensitively), with the same behaviour.
 
 The response has one additional property:
 
@@ -775,6 +792,8 @@ only Files that are not executable.
 For a node the user can discover but not read, a condition on a
 property that FileNode/get returns as null for that node (see
 "Access Control") does not match the node, whatever its value.
+The body condition, and the body part of the text condition,
+never match such a node.
 
 It also supports the following additional sort properties:
 
@@ -795,8 +814,8 @@ It also supports the following additional sort properties:
 When sorting by a property that is not defined for a node's
 `@type` (for example `size` on a Directory), or that FileNode/get
 returns as null because the user cannot read the node (see
-"Access Control"), nodes without the property sort before nodes that have it when isAscending is
-true.  Nodes that lack the property are ordered among themselves
+"Access Control"), nodes without the property sort before
+nodes that have it when isAscending is true.  Nodes that lack the property are ordered among themselves
 as if that Comparator were absent from the sort.
 
 ### FileNode/queryChanges
@@ -865,18 +884,15 @@ with HTTP 415 (Unsupported Media Type).
 
 # Access Control
 
-Since nodes create a tree, ACLs created by shareWith automatically
-apply to children as well.  Inheritance only adds rights: a
-node's `myRights` includes every right granted by its parent's
-`myRights`, except that `mayAddChildren` is false on nodes whose
-`@type` does not permit children, and `mayShare` may be false as
-described below.  A `shareWith` entry on a descendant
-can grant a user more rights on that subtree, but it cannot take
-away rights inherited from an ancestor.  In particular, if
-`mayRead` is set on a node, all its descendants are also
-readable.  The `myRights` property on every node reflects the
-derived rights for the current user, taking inheritance into
-account.
+Access control lists are set with `shareWith`, which only nodes
+whose `@type` permits children can have.  Rights are inherited
+down the tree: a node's `myRights` is the union of the rights
+granted to the user by the `shareWith` entries on the node and on
+all its ancestors.  Inherited rights are a floor.  A `shareWith`
+entry on a descendant can grant a user more rights on that
+subtree, but it cannot take away rights granted higher up.
+`mayAddChildren` and `mayShare` are always false on nodes whose
+`@type` does not permit children.
 
 When a `shareWith` change on a node causes the derived `myRights`
 to change for any descendant, the server MUST report those
@@ -885,33 +901,34 @@ SHOULD NOT report descendants whose derived `myRights` did not
 actually change, but MAY do so if it cannot efficiently determine
 whether the derived values differ.
 
-If a server does not support changing access on non-directory
-nodes, it can set `mayShare` to false on those nodes, even if the
-parent directory has true.
-
 Nodes which are not "discoverable" MUST return notFound errors if
 fetched with FileNode/get and MUST NOT be returned in response to
 FileNode/query.  Nodes are discoverable in one of two ways:
 
 1. If the node or an ancestor of the node has mayRead true.
 
-2. If the node is an ancestor of a node which has mayRead true.
+2. If the node or a descendant of the node has a `shareWith`
+   entry that grants the user any right.
 
-In the second case, the node itself will have mayRead false, and appears
-only to give the full path to the visible nodes.  This means that
+A node that is discoverable only through the second rule has
+mayRead false.  It is visible so that the user can use the
+rights granted on it, and can see the full path to the nodes
+they have access to.  This means that
 a query with that node as the parent will only return those of its
 children which are otherwise discoverable through the second
 discoverability rule.
 
 For a node that is discoverable but does not have `mayRead`,
 FileNode/get returns the real values of `id`, `@type`, `name`,
-`parentId`, `myRights`, and `isSubscribed`.  It returns null
-for every other property defined for the node's `@type`,
-including `created`, `changed`, and `role`, even where that
-property's type does not otherwise allow null.  A change to a
-property the user sees as null is not visible to the user, so
-the server SHOULD NOT report the node as updated in
-FileNode/changes because of it.
+`parentId`, `myRights`, `isSubscribed`, and `shareWith` (which
+follows its own rule for `mayShare`).  It returns null for every
+other property defined for the node's `@type`, including
+`created`, `changed`, and `role`, even where that property's type
+does not otherwise allow null.  A change to a property the user
+sees as null is not visible to the user, so the server SHOULD NOT
+report the node as updated in FileNode/changes because of it, but
+MAY do so if it cannot efficiently determine whether any property
+visible to the user changed.
 
 Such a node can have descendants the user cannot discover.  A
 destroy that would remove any of them, either through
@@ -1407,8 +1424,9 @@ The alternatives would be to reveal the ids of the hidden nodes,
 or to destroy data the user cannot see, and both are worse.
 
 Changes to the `shareWith` property on a node affect all descendants.
-Removing sharing from a parent node will make all descendants
-undiscoverable to the affected users, which may be surprising if
+Removing sharing from a parent node will make its descendants
+undiscoverable to the affected users, unless a descendant is
+also shared with them directly, which may be surprising if
 those users had been actively working with the shared files.
 
 ## Content Security
@@ -1543,11 +1561,16 @@ The source of this document exists on github at: https://github.com/brong/draft-
 
 **draft-ietf-jmap-filenode-18**
 
-* Inherited rights cannot be narrowed by a `shareWith` entry on
-  a descendant.
+* Only nodes whose `@type` permits children can have
+  `shareWith`; `mayShare` is always false on other nodes.
+* `shareWith` is the access control list on that node only;
+  `myRights` is the union of the lists on the node and its
+  ancestors, so a descendant cannot narrow inherited rights.
+* A node with a `shareWith` entry for the user, or with such a
+  descendant, is discoverable.
 * Defined which properties FileNode/get returns for a node that
   is discoverable but not readable, and how FileNode/query
-  filters and sorts treat it.
+  filters and sorts treat it; body never matches it.
 * A destroy that would remove undiscoverable nodes fails with
   "forbidden".
 * onExists checks rights before comparing against the existing
