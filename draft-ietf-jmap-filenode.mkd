@@ -304,14 +304,20 @@ regardless of its type:
     `executable`, and all other mutable properties.  This is
     not settable by clients.
 
+### Container properties
+
+The following properties are defined for every FileNode whose
+`@type` permits children; of the types defined in this document,
+only "Directory" does.  They do not appear on other nodes, whose
+rights come from their parent (see "Access Control").
+
 * isSubscribed: "Boolean" (default: true)
 
     This property is stored per user, and if true, the node should
     be displayed to the current user.  Some servers may not allow
-    this field to be changed for some or all nodes, for example only for
-    directories, or only for nodes on which the shareWith ACL is
-    actually set for this user, not nodes which inherit their ACL
-    from a parent.
+    this field to be changed for some or all nodes, for example
+    only for nodes on which the shareWith ACL is actually set for
+    this user, not nodes which inherit their ACL from a parent.
 
 * myRights: "FilesRights" (server-set)
 
@@ -322,16 +328,14 @@ regardless of its type:
       the blob content of this node.  Without it, some properties
       are still visible (see "Access Control").
     * mayAddChildren: `Boolean` The user may create child nodes
-      in this directory.  This is always false for nodes whose
-      `@type` does not permit children.
+      in this directory.
     * mayRename: `Boolean` The user may rename or move this node.
     * mayDelete: `Boolean` The user may destroy this node.
     * mayModifyContent: `Boolean` The user may update the
       content-related properties of this node (`blobId`, `mediaType`,
       `target`, `modified`, `accessed`, `executable`).
     * mayShare: `Boolean` The user may change the sharing of this
-      node (see {{JMAP-SHARING}}).  This is always false for nodes
-      whose `@type` does not permit children.
+      node (see {{JMAP-SHARING}}).
 
 * shareWith: "Id\[FilesRights]\|null"
 
@@ -341,9 +345,6 @@ regardless of its type:
     Control").  The owner of the node MUST NOT be in this set.
     This is `null` if the user requesting the object does not have
     `myRights.mayShare`, or if the node is not shared with anyone.
-    Only nodes whose `@type` permits children can be shared.  On
-    any other node this is always null, and setting it to a
-    non-null value is an "invalidProperties" error.
 
 ### File properties
 
@@ -891,8 +892,12 @@ granted to the user by the `shareWith` entries on the node and on
 all its ancestors.  Inherited rights are a floor.  A `shareWith`
 entry on a descendant can grant a user more rights on that
 subtree, but it cannot take away rights granted higher up.
-`mayAddChildren` and `mayShare` are always false on nodes whose
-`@type` does not permit children.
+
+A node whose `@type` does not permit children has no `myRights`.
+The user's rights on it are those in its parent's `myRights`;
+`mayAddChildren` and `mayShare` do not apply to it.  Such a node
+with a null parentId is discoverable only by the account owner,
+who has all rights on it.
 
 When a `shareWith` change on a node causes the derived `myRights`
 to change for any descendant, the server MUST report those
@@ -988,8 +993,8 @@ properties:
   archive entry from the referenced FileNode's properties.
   The `blobId` and `name` are taken from the FileNode.  The
   FileNode's `created` and `modified` timestamps map to the
-  archive entry's time metadata.  The FileNode's
-  `myRights` (specifically the `mayModifyContent` right) and,
+  archive entry's time metadata.  The user's rights on the
+  FileNode (specifically the `mayModifyContent` right) and,
   for a File, the `executable` property inform the `mode` field in the
   archive entry (for example, permissions and executable bit).
   If the ArchiveEntry also provides explicit values for
@@ -1561,8 +1566,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
 
 **draft-ietf-jmap-filenode-18**
 
-* Only nodes whose `@type` permits children can have
-  `shareWith`; `mayShare` is always false on other nodes.
+* `isSubscribed`, `myRights`, and `shareWith` are defined only for
+  nodes whose `@type` permits children.  Other nodes take their
+  rights from their parent, so a sharing change no longer marks
+  every descendant File as changed.
 * `shareWith` is the access control list on that node only;
   `myRights` is the union of the lists on the node and its
   ancestors, so a descendant cannot narrow inherited rights.
