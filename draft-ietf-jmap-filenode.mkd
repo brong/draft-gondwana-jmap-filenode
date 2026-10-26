@@ -647,10 +647,15 @@ This is a standard Foo/query method except for the following:
 
 There's one more property to the query:
 
-* depth: "UnsignedInt\|null"
+* depth: "UnsignedInt\|null" (default: null)
 
-    The number of levels of subdirectories to recurse into.  If
-    absent, null, or zero, do not recurse.
+    The maximum depth in the tree, counted from the top level, at
+    which a node can match: nodes with a null parentId are at depth
+    0, their children at depth 1, and so on.  This applies whatever
+    the filter; conditions such as `parentId` and `ancestorId` only
+    select among the nodes within it, and depth is never counted
+    from them.  So `ancestorId` without `depth` matches the whole
+    subtree.  If null, there is no limit.
 
 The following filter criteria are defined:
 
@@ -821,7 +826,8 @@ as if that Comparator were absent from the sort.
 
 ### FileNode/queryChanges
 
-This is a standard Foo/queryChanges method.
+This is a standard Foo/queryChanges method, which also takes the
+`depth` argument of FileNode/query, with the same meaning.
 
 # Direct HTTP Write
 
@@ -1581,6 +1587,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
 
 **draft-ietf-jmap-filenode-19**
 
+* The query `depth` argument is counted from the top level of the
+  account (top-level nodes are at depth 0), whatever the filter, and
+  absent or null now means no limit rather than "do not recurse".
+  FileNode/queryChanges takes it too.
 * Fixed the blob capability name in the ArchiveEntry text to
   `urn:ietf:params:jmap:blob2`, matching {{JMAP-BLOBEXT}}.
 * Renaming or moving a node does not change its `modified` time;
