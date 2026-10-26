@@ -108,15 +108,6 @@ on server capabilities and permissions for that account:
     The server MUST reject names containing any of these
     characters with an "invalidProperties" error.
 
-* forbiddenNodeNames: "String\[\]\|null"
-
-    An array of complete names that the server will not accept
-    as FileNode names, compared case-insensitively.  For
-    example, `[".", "..", "CON", "PRN", "AUX", "NUL"]` would
-    forbid common path-traversal names and Windows reserved
-    device names.  If null, the server does not forbid any
-    specific names.
-
 * supportedNodeTypes: "String\[\]"
 
     The `@type` values that the server allows clients to create
@@ -181,11 +172,6 @@ on server capabilities and permissions for that account:
     ],
     "supportedNodeTypes": ["Directory", "File", "SymLink"],
     "forbiddenNameChars": "/<>:\"\\|?*",
-    "forbiddenNodeNames": [".", "..", "CON", "PRN", "AUX",
-      "NUL", "COM0", "COM1", "COM2", "COM3", "COM4", "COM5",
-      "COM6", "COM7", "COM8", "COM9", "LPT0", "LPT1", "LPT2",
-      "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
-    ],
     "caseInsensitiveNames": false,
     "mayCreateTopLevelFileNode": false,
     "webTrashUrl": "https://files.example.com/trash",
@@ -268,10 +254,11 @@ regardless of its type:
     subject to the maximum size given in the capability object.  There
     MUST NOT be two sibling FileNodes with both the same parent and
     the same name.  The server MUST reject names containing any
-    character listed in `forbiddenNameChars`, or matching any
-    entry in `forbiddenNodeNames` (case-insensitively), with an
-    "invalidProperties" error.  See Implementation Considerations
-    for guidance on which characters and names to forbid.
+    character listed in `forbiddenNameChars` with an
+    "invalidProperties" error.  It MAY also reject other names it
+    cannot store, such as "." and "..", in the same way.  See
+    Implementation Considerations for guidance on which characters
+    and names to forbid.
 
 * created: "UTCDate" (default: current server time)
 
@@ -1405,9 +1392,10 @@ precision.
 
 ## Filename Character Restrictions
 
-Servers should set `forbiddenNameChars` and `forbiddenNodeNames`
-to include characters and names that are problematic for their
-storage backend and for the broadest set of clients.
+Servers should set `forbiddenNameChars` to include characters
+that are problematic for their storage backend and for the
+broadest set of clients, and may reject names that are
+problematic (see "name" in "Common properties").
 
 The following characters are problematic on common platforms:
 
@@ -1425,9 +1413,10 @@ The following names are problematic:
   of file extension (for example, "CON.txt" is also forbidden).
 
 A server targeting broad client compatibility should include
-at least `/<>:"\|?*` in `forbiddenNameChars` and at least
-`.`, `..`, and the Windows reserved names in
-`forbiddenNodeNames`.
+at least `/<>:"\|?*` in `forbiddenNameChars`, and reject the
+names `.` and `..`.  Clients that sync to platforms with further
+restrictions, such as the Windows reserved names, need to handle
+those names locally, since other clients may create them.
 
 ## Case Sensitivity
 
@@ -1458,7 +1447,7 @@ All security considerations from {{JMAP-CORE}} apply to this document.
 Clients that reconstruct filesystem paths from FileNode hierarchies
 MUST validate the resulting paths and reject any that would escape
 the intended directory tree.  Servers SHOULD include `/` in
-`forbiddenNameChars` and `.` and `..` in `forbiddenNodeNames` to
+`forbiddenNameChars` and reject the names `.` and `..` to
 prevent path traversal attacks via node names.
 
 ## Symlink Targets
@@ -1649,6 +1638,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
   discovering the node.
 * A server may treat a `shareWith` change as a change to every node
   in the subtree, including nodes without `myRights`.
+* Removed the `forbiddenNodeNames` capability: it could not
+  express the names that matter (such as "CON.txt"), clients did
+  not use it, and a server can reject names it cannot store
+  regardless.
 * Direct HTTP Write accepts `Repr-Digest` and `Content-Digest`
   {{DIGEST-FIELDS}} on PUT and PATCH, rejecting a mismatch, and
   returns digests of the new content requested with
