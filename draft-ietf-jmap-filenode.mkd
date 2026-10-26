@@ -314,10 +314,9 @@ rights come from their parent (see "Access Control").
 * isSubscribed: "Boolean" (default: true)
 
     This property is stored per user, and if true, the node should
-    be displayed to the current user.  Some servers may not allow
-    this field to be changed for some or all nodes, for example
-    only for nodes on which the shareWith ACL is actually set for
-    this user, not nodes which inherit their ACL from a parent.
+    be displayed to the current user.  Setting it changes only the
+    current user's value, and requires no rights beyond being able
+    to discover the node.
 
 * myRights: "FilesRights" (server-set)
 
@@ -921,7 +920,9 @@ to change for any descendant, the server MUST report those
 descendants as changed in FileNode/changes responses.  The server
 SHOULD NOT report descendants whose derived `myRights` did not
 actually change, but MAY do so if it cannot efficiently determine
-whether the derived values differ.
+whether the derived values differ.  In particular, a server MAY
+treat a `shareWith` change as a change to every node in that
+subtree, including nodes that have no `myRights` of their own.
 
 Nodes which are not "discoverable" MUST return notFound errors if
 fetched with FileNode/get and MUST NOT be returned in response to
@@ -931,6 +932,10 @@ FileNode/query.  Nodes are discoverable in one of two ways:
 
 2. If the node or a descendant of the node has a `shareWith`
    entry that grants the user any right.
+
+When a node stops being discoverable by the user, for example
+because a `shareWith` entry was removed, the server reports it as
+destroyed in FileNode/changes.
 
 A node that is discoverable only through the second rule has
 mayRead false.  It is visible so that the user can use the
@@ -1606,6 +1611,12 @@ The source of this document exists on github at: https://github.com/brong/draft-
   `mayRename` and `mayDelete`, which a Directory's own `myRights`
   report.  A Directory with a role cannot be destroyed, renamed or
   moved.
+* A node that stops being discoverable is reported as destroyed in
+  FileNode/changes.
+* `isSubscribed` is per user, and setting it needs no rights beyond
+  discovering the node.
+* A server may treat a `shareWith` change as a change to every node
+  in the subtree, including nodes without `myRights`.
 * Fixed the blob capability name in the ArchiveEntry text to
   `urn:ietf:params:jmap:blob2`, matching {{JMAP-BLOBEXT}}.
 * Renaming or moving a node does not change its `modified` time;
