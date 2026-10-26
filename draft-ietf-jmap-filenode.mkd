@@ -934,14 +934,13 @@ own `myRights.mayRename` and `myRights.mayDelete` report its
 parent's values.  A Directory with a role cannot be destroyed,
 renamed or moved, and reports `mayRename` and `mayDelete` as false.
 
-When a `shareWith` change on a node causes the derived `myRights`
-to change for any descendant, the server MUST report those
-descendants as changed in FileNode/changes responses.  The server
-SHOULD NOT report descendants whose derived `myRights` did not
-actually change, but MAY do so if it cannot efficiently determine
-whether the derived values differ.  In particular, a server MAY
-treat a `shareWith` change as a change to every node in that
-subtree, including nodes that have no `myRights` of their own.
+A change to `shareWith` on a node is a change to every node in
+its subtree: the server MUST report all of them as changed in
+FileNode/changes, including nodes that have no `myRights` of their
+own and take their rights from their parent.  A client therefore
+learns the new rights of everything below a node whose sharing
+changed from FileNode/changes alone, without working out which
+nodes are affected itself.
 
 Nodes which are not "discoverable" MUST return notFound errors if
 fetched with FileNode/get and MUST NOT be returned in response to
@@ -1636,8 +1635,9 @@ The source of this document exists on github at: https://github.com/brong/draft-
   FileNode/changes.
 * `isSubscribed` is per user, and setting it needs no rights beyond
   discovering the node.
-* A server may treat a `shareWith` change as a change to every node
-  in the subtree, including nodes without `myRights`.
+* A `shareWith` change MUST be reported as a change to every node in
+  the subtree, including nodes without `myRights`, so clients need
+  not work out which nodes it affects.
 * Removed the `forbiddenNodeNames` capability: it could not
   express the names that matter (such as "CON.txt"), clients did
   not use it, and a server can reject names it cannot store
