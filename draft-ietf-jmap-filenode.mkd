@@ -27,6 +27,7 @@ normative:
     JMAP-BLOBEXT: I-D.draft-gondwana-jmap-blobext
     JMAP-CONDITIONAL: I-D.draft-gondwana-jmap-conditional
     JMAP-METADATA: I-D.draft-ietf-jmap-metadata
+    DIGEST-FIELDS: RFC9530
 
 informative:
     CALDAV: RFC4791
@@ -891,6 +892,37 @@ updates `mediaType` with FileNode/set.  The response is an HTTP
 Servers that do not support a given patch format MUST respond
 with HTTP 415 (Unsupported Media Type).
 
+## Integrity
+
+A PUT or PATCH request MAY carry `Repr-Digest` or `Content-Digest`
+header fields {{DIGEST-FIELDS}} for the data it sends: for PUT, the
+new content of the node; for PATCH, the patch.  The server MUST
+verify each digest whose algorithm it supports.  If any does not
+match, the server MUST respond with HTTP 400 and MUST NOT change
+the node.  As {{DIGEST-FIELDS}} describes, a digest whose algorithm
+the server does not support is ignored.
+
+A client can ask for a digest of the node's new content by sending
+`Want-Repr-Digest` {{DIGEST-FIELDS}}.  On success, for each
+algorithm it lists that the server supports, the server SHOULD
+include a member named "digest:" followed by the algorithm name
+(for example "digest:sha-256") in the JSON response body, holding
+the base64-encoded digest of the node's new content, as Blob/get
+does in {{JMAP-BLOBEXT}}.  The digest is in the body because any
+digest header fields on the response describe the response body
+itself, not the node.  This lets a client confirm the result of a
+PATCH, or of a PUT whose digest it did not send, without a further
+request.
+
+~~~json
+{
+  "blobId": "Bpatched456",
+  "size": 49152,
+  "mediaType": "text/plain",
+  "digest:sha-256": "lu2dEm1cr1Hg2GqVDXMTGP3sgQfFYyp8XUd2ZTgp5Qc="
+}
+~~~
+
 # Access Control
 
 Access control lists are set with `shareWith`, which only nodes
@@ -1617,6 +1649,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
   discovering the node.
 * A server may treat a `shareWith` change as a change to every node
   in the subtree, including nodes without `myRights`.
+* Direct HTTP Write accepts `Repr-Digest` and `Content-Digest`
+  {{DIGEST-FIELDS}} on PUT and PATCH, rejecting a mismatch, and
+  returns digests of the new content requested with
+  `Want-Repr-Digest`.
 * Fixed the blob capability name in the ArchiveEntry text to
   `urn:ietf:params:jmap:blob2`, matching {{JMAP-BLOBEXT}}.
 * Renaming or moving a node does not change its `modified` time;
