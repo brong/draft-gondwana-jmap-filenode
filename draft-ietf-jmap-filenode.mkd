@@ -330,7 +330,10 @@ rights come from their parent (see "Access Control").
     * mayAddChildren: `Boolean` The user may create child nodes
       in this directory.
     * mayRename: `Boolean` The user may rename or move this node.
-    * mayDelete: `Boolean` The user may destroy this node.
+      This is governed by the parent's rights (see "Access
+      Control").
+    * mayDelete: `Boolean` The user may destroy this node.  This
+      is governed by the parent's rights (see "Access Control").
     * mayModifyContent: `Boolean` The user may update the
       content-related properties of this node (`blobId`, `mediaType`,
       `target`, `modified`, `accessed`, `executable`).
@@ -904,6 +907,14 @@ The user's rights on it are those in its parent's `myRights`;
 `mayAddChildren` and `mayShare` do not apply to it.  Such a node
 with a null parentId is discoverable only by the account owner,
 who has all rights on it.
+
+Renaming, moving or destroying a node changes the contents of its
+parent, so it is governed by the parent's rights: the server checks
+`mayRename` (to rename or move the node) and `mayDelete` (to
+destroy it) in the parent's `myRights`.  Accordingly, a Directory's
+own `myRights.mayRename` and `myRights.mayDelete` report its
+parent's values.  A Directory with a role cannot be destroyed,
+renamed or moved, and reports `mayRename` and `mayDelete` as false.
 
 When a `shareWith` change on a node causes the derived `myRights`
 to change for any descendant, the server MUST report those
@@ -1591,6 +1602,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
   account (top-level nodes are at depth 0), whatever the filter, and
   absent or null now means no limit rather than "do not recurse".
   FileNode/queryChanges takes it too.
+* Renaming, moving or destroying a node is governed by its parent's
+  `mayRename` and `mayDelete`, which a Directory's own `myRights`
+  report.  A Directory with a role cannot be destroyed, renamed or
+  moved.
 * Fixed the blob capability name in the ArchiveEntry text to
   `urn:ietf:params:jmap:blob2`, matching {{JMAP-BLOBEXT}}.
 * Renaming or moving a node does not change its `modified` time;
