@@ -884,9 +884,8 @@ match, the server MUST respond with HTTP 400 and MUST NOT change
 the node.  As {{DIGEST-FIELDS}} describes, a digest whose algorithm
 the server does not support is ignored.  The algorithms a server
 supports are those in the `supportedDigestAlgorithms` capability of
-{{JMAP-BLOBEXT}}: servers SHOULD support "sha-256", and clients
-SHOULD use it when available; "sha" may also be supported for
-compatibility.
+{{JMAP-BLOBEXT}}, which lists them in the server's order of
+preference; clients SHOULD use the first one they support.
 
 A client can ask for a digest of the node's new content by sending
 `Want-Repr-Digest` {{DIGEST-FIELDS}}.  On success, for each
