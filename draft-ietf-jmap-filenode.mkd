@@ -128,9 +128,11 @@ on server capabilities and permissions for that account:
 * mayCreateTopLevelFileNode: "Boolean"
 
    If true, the user may create a FileNode (see "FileNode/set" below) in this
-   account with a null parentId.  (Permission for creating a child of
-   an existing FileNode is given by the "myRights" property on that
-   FileNode.)
+   account with a null parentId.  If false, creating a node with a
+   null parentId, or moving one there, fails with "forbidden": the
+   request is valid, but not allowed.  (Permission for creating a
+   child of an existing FileNode is given by the "myRights" property
+   on that FileNode.)
 
 * webTrashUrl: "String\|null"
 
@@ -832,8 +834,10 @@ the `mediaType` of the node.  If the request has no Content-Type
 header, the server sets `mediaType` to "application/octet-stream".
 
 On success, the server MUST update the node's `blobId`, `size`,
-and `mediaType` properties, and return an HTTP 200 response with a
-JSON body:
+and `mediaType` properties, and set `modified` to the current
+server time (a PUT cannot carry a client timestamp; a client that
+wants a different one sets it with FileNode/set afterwards).  It
+returns an HTTP 200 response with a JSON body:
 
 ~~~json
 {
@@ -854,8 +858,8 @@ the `supportedPatchTypes` capability of {{JMAP-BLOBEXT}} (for example,
 current blob to produce the new content.
 
 On success, the server MUST update the node's `blobId` and
-`size` properties.  The server MUST NOT change the node's
-`mediaType`.  A client that needs to change it uses PUT, or
+`size` properties, and set `modified` to the current server time,
+as for PUT.  The server MUST NOT change the node's `mediaType`.  A client that needs to change it uses PUT, or
 updates `mediaType` with FileNode/set.  The response is an HTTP
 200 with the same JSON body as PUT:
 
@@ -1634,6 +1638,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
   name collisions, compared client clocks, and was easily mistaken
   for a content precondition; "unchanged" with {{JMAP-CONDITIONAL}}
   is the way to replace a node only if it is the one expected.
+* Creating or moving a node to the top level without
+  `mayCreateTopLevelFileNode` fails with "forbidden".
+* Direct HTTP Write PUT and PATCH set `modified` to the current
+  server time.
 * Direct HTTP Write accepts `Repr-Digest` and `Content-Digest`
   {{DIGEST-FIELDS}} on PUT and PATCH, rejecting a mismatch, and
   returns digests of the new content requested with
