@@ -525,14 +525,6 @@ There are these additional top level arguments:
    the name, it MUST include the new "name" value in the created
    or updated response field for this id.
 
-   If "newest", the server compares the `modified` timestamp of
-   the incoming item with that of the existing FileNode.  If the
-   incoming item has a strictly later `modified` value, the
-   existing node is destroyed and the operation proceeds as with
-   "replace".  Otherwise the operation is rejected as with null,
-   returning an "alreadyExists" error with the `existingId` of the
-   surviving node.
-
    If "unchanged", the operation proceeds as with "replace", but
    only if a precondition on the colliding node is satisfied.  The
    client supplies this precondition in the "ifUnchangedBy" argument
@@ -566,13 +558,12 @@ There are these additional top level arguments:
       for other reasons, such as a file name policy, so it does not
       confirm that the name is taken.
 
-   2. "replace", "newest", and "unchanged" require `mayDelete` on
-      the existing node, and "newest" and "unchanged" also require
-      `mayRead` on it.  Without these rights, the operation fails
-      with "forbidden".
+   2. "replace" and "unchanged" require `mayDelete` on the existing
+      node, and "unchanged" also requires `mayRead` on it.  Without
+      these rights, the operation fails with "forbidden".
 
-   3. Only after these checks does the server compare `modified`
-      for "newest" or evaluate the precondition for "unchanged".
+   3. Only after these checks does the server evaluate the
+      precondition for "unchanged".
 
    4. If the existing node is to be replaced, the server then
       checks its children: the operation fails with
@@ -1176,10 +1167,8 @@ additional properties:
   with an existing FileNode name under the same parent.  The
   values and semantics are the same as for FileNode/set (see
   above): null rejects with an `alreadyExists` SetError,
-  "replace" destroys the existing node, "rename" gives the new
-  node a server-chosen name, and "newest" replaces the existing
-  node only if the archive entry has a strictly later `modified`
-  timestamp.
+  "replace" destroys the existing node, and "rename" gives the new
+  node a server-chosen name.
 
 When `parentNodeId` is set, each ArchiveEntry in the response
 `entries` array includes an additional `nodeId` property
@@ -1385,9 +1374,8 @@ sends, down to whole seconds.  It then truncates the value it
 stores, and returns the stored value in FileNode/get, so a client
 can learn the precision in use.  Clients comparing a local time
 with a server timestamp (for example to recognise their own
-changes) need to allow for this.  Comparisons the server makes,
-such as for the "newest" value of `onExists`, use the stored
-precision.
+changes) need to allow for this.  Comparisons the server makes
+between timestamps use the stored precision.
 
 ## Filename Character Restrictions
 
@@ -1642,6 +1630,10 @@ The source of this document exists on github at: https://github.com/brong/draft-
   express the names that matter (such as "CON.txt"), clients did
   not use it, and a server can reject names it cannot store
   regardless.
+* Removed the "newest" value of `onExists`.  It only applied to
+  name collisions, compared client clocks, and was easily mistaken
+  for a content precondition; "unchanged" with {{JMAP-CONDITIONAL}}
+  is the way to replace a node only if it is the one expected.
 * Direct HTTP Write accepts `Repr-Digest` and `Content-Digest`
   {{DIGEST-FIELDS}} on PUT and PATCH, rejecting a mismatch, and
   returns digests of the new content requested with
@@ -1652,7 +1644,7 @@ The source of this document exists on github at: https://github.com/brong/draft-
   the guidance to update `modified` now applies to content changes.
 * A server may store timestamps with less precision than clients
   send, down to whole seconds, truncating and returning the stored
-  value; "newest" compares at that precision.
+  value.
 
 **draft-ietf-jmap-filenode-18**
 
