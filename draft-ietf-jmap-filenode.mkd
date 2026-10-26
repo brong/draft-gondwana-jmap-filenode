@@ -1,7 +1,7 @@
 ---
 title: JMAP File Storage extension
 abbrev: JMAP FileNode
-docname: draft-ietf-jmap-filenode-18
+docname: draft-ietf-jmap-filenode-19
 submissionType: IETF
 category: std
 updates: 8620
@@ -984,7 +984,7 @@ objects) are applicable.
 # Integration with JMAP Blob Extensions
 
 When a server advertises both `urn:ietf:params:jmap:filenode` and
-`urn:ietf:params:jmap:blobext`, the ArchiveEntry object type
+`urn:ietf:params:jmap:blob2`, the ArchiveEntry object type
 (defined in {{JMAP-BLOBEXT}}) is extended with two additional
 properties:
 
@@ -1315,12 +1315,18 @@ semantics of {{JMAP-METADATA}}.
 
 ## Modification Timestamps
 
-Clients SHOULD provide an updated `modified` value when modifying
-a node.  This gives clients control over the timestamp, for
-example when preserving original modification times during file
-synchronization.  Clients that do not care about preserving
-timestamps can set `modified` to null to have the server use the
-current time.
+Clients SHOULD provide an updated `modified` value when changing
+the content of a node.  This gives clients control over the
+timestamp, for example when preserving original modification times
+during file synchronization.  Clients that do not care about
+preserving timestamps can set `modified` to null to have the server
+use the current time.
+
+Renaming or moving a node does not change its `modified` time, as
+on common local filesystems.  The server MUST NOT change `modified`
+for an update that does not include it, and a client SHOULD NOT
+include `modified` in an update that only renames or moves a node
+unless it intends to change it (for example by setting it to null).
 
 Clients may also choose to update the `modified` timestamp on a
 parent directory when moving a child node in or out, to reflect
@@ -1333,6 +1339,15 @@ Servers SHOULD include sub-second precision in `created`,
 `modified`, `accessed`, and `changed` timestamps where their
 storage backend supports it.  Clients MUST preserve fractional
 seconds when they send timestamps back to the server.
+
+A server MAY store timestamps with less precision than a client
+sends, down to whole seconds.  It then truncates the value it
+stores, and returns the stored value in FileNode/get, so a client
+can learn the precision in use.  Clients comparing a local time
+with a server timestamp (for example to recognise their own
+changes) need to allow for this.  Comparisons the server makes,
+such as for the "newest" value of `onExists`, use the stored
+precision.
 
 ## Filename Character Restrictions
 
@@ -1563,6 +1578,16 @@ Change Controller: IETF
 EDITOR: please remove this section before publication.
 
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
+
+**draft-ietf-jmap-filenode-19**
+
+* Fixed the blob capability name in the ArchiveEntry text to
+  `urn:ietf:params:jmap:blob2`, matching {{JMAP-BLOBEXT}}.
+* Renaming or moving a node does not change its `modified` time;
+  the guidance to update `modified` now applies to content changes.
+* A server may store timestamps with less precision than clients
+  send, down to whole seconds, truncating and returning the stored
+  value; "newest" compares at that precision.
 
 **draft-ietf-jmap-filenode-18**
 
