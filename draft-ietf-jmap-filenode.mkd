@@ -805,9 +805,11 @@ JMAP HTTP endpoints.
 ## PUT
 
 A PUT request replaces the entire content of the node.  The
-request body is the new content.  The Content-Type header sets
-the `mediaType` of the node.  If the request has no Content-Type
-header, the server sets `mediaType` to "application/octet-stream".
+request body is the new content.  The type and subtype of the
+Content-Type header field set the `mediaType` of the node; the
+server does not store any parameters (such as "charset").  If the
+request has no Content-Type header field, the server sets
+`mediaType` to "application/octet-stream".
 
 On success, the server MUST update the node's `blobId`, `size`,
 and `mediaType` properties, and set `modified` to the current
@@ -1668,6 +1670,8 @@ The source of this document exists on github at: https://github.com/brong/draft-
   is not discoverable, and `mayModifyContent` for a File is its
   parent's.  The `modified` definition notes that Direct HTTP Write
   sets it.
+* Direct HTTP Write PUT sets `mediaType` from the type and subtype
+  of Content-Type only, without parameters.
 * The `text` query condition matches name and mediaType by
   substring rather than as a glob.
 * Added a children column to the "JMAP FileNode Types" registry,
