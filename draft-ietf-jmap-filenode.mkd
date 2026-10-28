@@ -1274,55 +1274,40 @@ directories and symbolic links.
 
 This document defines the "xattr" namespace for the "metadata" and
 "privateMetadata" properties.  Its value is an object mapping an attribute name
-to an **XattrValue** object.  The attribute name is the platform-native name of
+to the attribute's value.  The attribute name is the platform-native name of
 the attribute or stream, stored verbatim (for example "user.comment",
 "com.apple.metadata:_kMDItemUserTags", or "Zone.Identifier").  Servers and
 clients MUST NOT normalise attribute names across platforms.  The server keeps
 an attribute that one platform writes, even where another platform has no
 equivalent for it.
 
-An **XattrValue** object has the following properties:
+An attribute value whose bytes are valid UTF-8 MAY be a String holding that
+text.  Any other value MUST be a Binary value as defined in {{JMAP-METADATA}}
+(for example "com.apple.FinderInfo", a binary plist, or a resource fork).
+The server returns a value in the form the client stored it.
 
-* data: "String\|null"
-
-    The attribute value as a UTF-8 string.  Used for small textual attributes.
-
-* blobId: "Id\|null"
-
-    The blobId of a blob holding the attribute value.  Used for large or
-    binary attributes (for example a resource fork, or a multi-kilobyte
-    stream).  A blob referenced by an XattrValue MUST NOT be expired or garbage
-    collected by the server while the FileNode references it, in the same way
-    as the content blob of a File.
-
-* type: "String\|null" (default: null)
-
-    An optional media type ({{MEDIATYPE}}) for the attribute value.
-
-An XattrValue MUST contain exactly one of "data" or "blobId"; providing both,
-or neither, is an "invalidProperties" error.  Binary attributes small enough to
-carry inline are still referenced by "blobId" rather than base64-encoded in
-"data".
-
-The value nests one object level below the namespace value (attribute name to
-XattrValue).  A server that supports the "xattr" namespace MUST advertise a
-"maxDepth" for FileNode of at least 1, or null (no limit).
+Attribute values are ordinary metadata: they count against the size limits
+and quota of {{JMAP-METADATA}}, and are copied, shared and protected by the
+rules there like any other namespace value.  A server rejects an attribute
+too large for its limits with the errors {{JMAP-METADATA}} defines, so a
+large named stream such as a resource fork can only be stored where the
+server's limits allow it.
 
 Attributes shared with every reader of the node (for example a quarantine flag)
 are stored under "metadata".  Attributes private to the current user (for
 example that user's own tags) are stored under "privateMetadata" where the
 server supports it.
 
-Example — a small textual attribute and a large binary one:
+Example — a textual attribute and a binary one:
 
 ~~~json
 {
   "metadata": {
     "xattr": {
-      "user.comment": { "data": "draft copy" },
-      "com.apple.ResourceFork": {
-        "blobId": "G_fork_9c2",
-        "type": "application/octet-stream"
+      "user.comment": "draft copy",
+      "com.apple.FinderInfo": {
+        "@type": "Binary",
+        "base64": "VEVYVHR0eHQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
       }
     }
   }
@@ -1338,7 +1323,8 @@ attribute name ("/" as "~1", "~" as "~0"):
   "accountId": "u1",
   "update": {
     "f42": {
-      "metadata/xattr/Zone.Identifier": { "data": "ZoneId=3" }
+      "metadata/xattr/Zone.Identifier":
+        "[ZoneTransfer]\r\nZoneId=3\r\n"
     }
   }
 }, "0"]]
@@ -1486,6 +1472,26 @@ undiscoverable to the affected users, unless a descendant is
 also shared with them directly, which may be surprising if
 those users had been actively working with the shared files.
 
+## Extended Attributes
+
+Some extended attributes carry security meaning on the platform that
+reads them.  On Linux, "security.capability" grants capabilities to an
+executable, "security.selinux" sets its security label, and attributes
+under "trusted." and "system." (such as "system.posix_acl_access") change
+privileges or access control.  Anyone with write access to a node can set
+these values, so a client that restores them lets that user change
+privileges on the client's machine.  Clients MUST NOT apply attributes
+whose names begin with "security.", "trusted." or "system." to local files
+unless explicitly configured to by the local administrator.
+
+Other attributes mark files as downloaded from an untrusted source, such
+as "com.apple.quarantine" on macOS and the "Zone.Identifier" stream on
+Windows, and the platform warns before such a file is opened.  A client
+that drops these markers when it syncs a file lets the file bypass that
+warning, so clients SHOULD preserve them.  A client SHOULD NOT treat the
+absence of a marker as evidence that a file is safe: any user with write
+access to the node can remove it.
+
 ## Content Security
 
 Servers that perform content scanning or malware detection SHOULD
@@ -1592,9 +1598,9 @@ Namespaces" registry established by {{JMAP-METADATA}}:
 
 Namespace Identifier: xattr
 
-Value Type: `String[XattrValue]` — an object mapping an attribute name to an
-XattrValue object, as defined in "Extended Attributes and Named Streams" of
-this document.
+Value Type: `String[String|Binary]` — an object mapping an attribute name to
+its value, as defined in "Extended Attributes and Named Streams" of this
+document.
 
 Applicable Properties: metadata, privateMetadata
 
@@ -1656,6 +1662,17 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * A server may store timestamps with less precision than clients
   send, down to whole seconds, truncating and returning the stored
   value.
+* Direct HTTP Write digests use the algorithms listed in the
+  `supportedDigestAlgorithms` capability of {{JMAP-BLOBEXT}}, and
+  clients use the first one they support.
+* The "xattr" namespace maps an attribute name directly to its
+  value: a String for UTF-8 text, or a {{JMAP-METADATA}} Binary
+  value.  Removed XattrValue and its "blobId", so attribute values
+  are ordinary metadata and the metadata quota, copy and access
+  rules apply to them.  Removed the `maxDepth` requirement, which
+  was wrong under {{JMAP-METADATA}}'s depth rules.
+* Added security considerations for extended attributes that grant
+  privileges and for download markers.
 
 **draft-ietf-jmap-filenode-18**
 
