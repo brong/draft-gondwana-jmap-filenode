@@ -24,29 +24,30 @@ normative:
     MEDIATYPE: RFC6838
     URI-TEMPLATE: RFC6570
     IANA-GUIDELINES: RFC8126
-    JMAP-BLOBEXT: I-D.draft-gondwana-jmap-blobext
-    JMAP-CONDITIONAL: I-D.draft-gondwana-jmap-conditional
-    JMAP-METADATA: I-D.draft-ietf-jmap-metadata
+    JMAP-BLOBEXT: I-D.ietf-jmap-blobext
+    JMAP-METADATA: I-D.ietf-jmap-metadata
+    JMAP-MAIL: RFC8621
+    JMAP-QUOTAS: RFC9425
     DIGEST-FIELDS: RFC9530
+    UNICODE: RFC5198
 
 informative:
     CALDAV: RFC4791
     CARDDAV: RFC6352
-    JMAP-MAIL: RFC8621
     JMAP-CALENDARS: I-D.ietf-jmap-calendars
+    JMAP-CONDITIONAL: I-D.ietf-jmap-conditional
     JMAP-CONTACTS: RFC9610
-    JMAP-QUOTAS: RFC9425
     WEBDAV: RFC4918
-    UNICODE: RFC5198
 
 --- abstract
 
-The JMAP base protocol (RFC8620) provides the ability to upload and download
+The JMAP base protocol (RFC 8620) provides the ability to upload and download
 arbitrary binary data.  This binary data is called a "blob", and can be used
 in all other JMAP extensions.
 
-This extension adds a method to expose blobs as a filesystem along with the
-types of metadata that are provided by other remote filesystem protocols.
+This extension adds a FileNode data type and methods to expose blobs as a
+filesystem, along with the types of metadata that are provided by other remote
+filesystem protocols.
 
 --- middle
 
@@ -69,7 +70,7 @@ for remote filesystem access.
 # Addition to the Capabilities Object
 
 The capabilities object is returned as part of the JMAP Session
-object; see {{JMAP-CORE}}, Section 2.
+object; see {{Section 2 of JMAP-CORE}}.
 
 This document defines an additional capability URI.
 
@@ -77,7 +78,7 @@ This document defines an additional capability URI.
 
 The capability `urn:ietf:params:jmap:filenode` being present in the
 "accountCapabilities" property of an account represents support
-for the FileNode datatype.  Servers that include the capability
+for the FileNode data type.  Servers that include the capability
 in one or more "accountCapabilities" properties MUST also include
 the property in the "capabilities" property.
 
@@ -111,28 +112,28 @@ on server capabilities and permissions for that account:
 * supportedNodeTypes: "String\[\]"
 
     The `@type` values that the server allows clients to create
-    in this account (see "FileNode objects" below).  This MUST
+    in this account (see "FileNode Objects" below).  This MUST
     include "Directory" and "File".  It MAY include "SymLink" and
     any other value registered in the "JMAP FileNode Types"
-    registry.  Clients MUST ignore values they do not recognise.
+    registry.  Clients MUST ignore values they do not recognize.
 
 * fileNodeQuerySortOptions: "String\[\]"
 
     A list of all the values the server supports for the "property"
     field of the Comparator object in a "FileNode/query" sort (see
-    "FileNode/query" below).  This MAY include properties the client does not
-    recognise (for example, custom properties specified in a vendor
+    "FileNode/query" below).  This MAY include properties the
+    client does not recognize (for example, custom properties specified in a vendor
     extension).  Clients MUST ignore any unknown properties in the
     list.
 
 * mayCreateTopLevelFileNode: "Boolean"
 
-   If true, the user may create a FileNode (see "FileNode/set" below) in this
-   account with a null parentId.  If false, creating a node with a
-   null parentId, or moving one there, fails with "forbidden": the
-   request is valid, but not allowed.  (Permission for creating a
-   child of an existing FileNode is given by the "myRights" property
-   on that FileNode.)
+    If true, the user may create a FileNode (see "FileNode/set"
+    below) in this account with a null parentId.  If false, creating
+    a node with a null parentId, or moving one there, fails with
+    "forbidden": the request is valid, but not allowed.  (Permission
+    for creating a child of an existing FileNode is given by the
+    "myRights" property on that FileNode.)
 
 * webTrashUrl: "String\|null"
 
@@ -156,8 +157,8 @@ on server capabilities and permissions for that account:
 * webWriteUrlTemplate: "String\|null"
 
     A URI Template (level 1) {{URI-TEMPLATE}} for writing content
-    to a FileNode with `@type` "File".  The available variable is `{id}`, which is
-    the FileNode id.  If null, direct HTTP writes are not
+    to a FileNode with `@type` "File".  The available variable is
+    `{id}`, which is the FileNode id.  If null, direct HTTP writes are not
     supported and clients must use FileNode/set to update content.
     See "Direct HTTP Write" below for the HTTP semantics.
 
@@ -189,10 +190,10 @@ A FileNode is a set of metadata which behaves similarly to an inode in
 a filesystem.  In {{WEBDAV}} terminology a Directory corresponds to
 a collection and a File to a resource.
 
-The following JMAP Methods are selected by the
-`urn:ietf:params:jmap:filenode` capability.
+The `urn:ietf:params:jmap:filenode` capability selects the
+FileNode data type and the methods defined below.
 
-## FileNode objects
+## FileNode Objects
 
 Every FileNode has a type, given by its `@type` property.  This
 document defines three types: "File", "Directory", and "SymLink".
@@ -208,7 +209,7 @@ null value for such a property, both on create and on update.
 This lets a client send the same set of properties for nodes of
 any type.
 
-As in {{JMAP-CORE}} Section 5.3, setting a property that has a
+As in {{Section 5.3 of JMAP-CORE}}, setting a property that has a
 default value to null, on create or update, sets it to that
 default, unless the property's description says otherwise.
 
@@ -218,7 +219,7 @@ discover but not read, it returns null for most properties, even
 those whose type does not otherwise allow null (see "Access
 Control").
 
-### Common properties
+### Common Properties
 
 The following properties are defined for every FileNode,
 regardless of its type:
@@ -226,14 +227,15 @@ regardless of its type:
 * @type: "String" (immutable)
 
     The type of the node.  Values are registered in the "JMAP
-    FileNode Types" registry (see IANA Considerations).  This
+    FileNode Types" registry (see "IANA Considerations").  This
     document defines the values "File", "Directory", and
     "SymLink".  This MUST be provided on creation.  Attempting to
     change `@type` after creation is an "invalidProperties"
     error.  A server MUST reject the creation of a node with an
     `@type` that is not in the `supportedNodeTypes` capability
-    with an "invalidProperties" error.  Clients MUST be prepared to receive nodes with
-    `@type` values they do not recognise, and SHOULD NOT
+    with an "invalidProperties" error.  Clients MUST be prepared
+    to receive nodes with `@type` values they do not recognize,
+    and SHOULD NOT
     interpret any of their properties other than the common
     properties.
 
@@ -243,7 +245,7 @@ regardless of its type:
 
 * parentId: "Id\|null"
 
-    The Id of the parent node, or null if this is a top level
+    The Id of the parent node, or null if this is a top-level
     node.  The parent MUST be a node whose `@type` permits
     children; of the types defined in this document, only
     "Directory" does.  Setting parentId to any other node is an
@@ -259,7 +261,7 @@ regardless of its type:
     character listed in `forbiddenNameChars` with an
     "invalidProperties" error.  It MAY also reject other names it
     cannot store, such as "." and "..", in the same way.  See
-    Implementation Considerations for guidance on which characters
+    "Implementation Considerations" for guidance on which characters
     and names to forbid.
 
 * created: "UTCDate" (default: current server time)
@@ -269,11 +271,12 @@ regardless of its type:
 * modified: "UTCDate\|null" (default: current server time)
 
     The date the node was last updated.  The server does not
-    automatically update this value.  If the client does not
+    automatically update this value, except on a Direct HTTP Write
+    (see "Direct HTTP Write").  If the client does not
     include `modified` in an update, the server MUST leave it
     unchanged.  If the client sets `modified` to null, the
     server MUST set it to the current server time.  See
-    Implementation Considerations for usage guidance.
+    "Implementation Considerations" for usage guidance.
 
 * accessed: "UTCDate\|null" (default: current server time)
 
@@ -284,7 +287,6 @@ regardless of its type:
     If set to null, the server MUST set it to the current server
     time.
 
-
 * changed: "UTCDate" (server-set)
 
     The date the server last recorded a change to any property
@@ -294,7 +296,7 @@ regardless of its type:
     `executable`, and all other mutable properties.  This is
     not settable by clients.
 
-### Container properties
+### Container Properties
 
 The following properties are defined for every FileNode whose
 `@type` permits children; of the types defined in this document,
@@ -317,12 +319,9 @@ rights come from their parent (see "Access Control").
       the blob content of this node.  Without it, some properties
       are still visible (see "Access Control").
     * mayAddChildren: `Boolean` The user may create child nodes
-      in this directory.
+      in this directory, or move nodes into it.
     * mayRename: `Boolean` The user may rename or move this node.
-      This is governed by the parent's rights (see "Access
-      Control").
-    * mayDelete: `Boolean` The user may destroy this node.  This
-      is governed by the parent's rights (see "Access Control").
+    * mayDelete: `Boolean` The user may destroy this node.
     * mayModifyContent: `Boolean` The user may update the
       content-related properties of this node (`blobId`, `mediaType`,
       `target`, `modified`, `accessed`, `executable`).
@@ -338,7 +337,7 @@ rights come from their parent (see "Access Control").
     This is `null` if the user requesting the object does not have
     `myRights.mayShare`, or if the node is not shared with anyone.
 
-### File properties
+### File Properties
 
 A FileNode with `@type` "File" is a regular file with blob
 content.  In addition to the common properties, it has the
@@ -368,16 +367,17 @@ following properties:
     The media type of the file.  If not provided on creation,
     or if set to null, the server sets it to
     "application/octet-stream".  Valid values are found in the
-    IANA media-types registry.  Servers MUST NOT reject media types that are not
-    recognised.  Servers MUST reject media types if the value
-    does not conform to the ABNF of {{MEDIATYPE}} Section 4.2.
+    IANA media-types registry.  Servers MUST NOT reject media
+    types that are not recognized.  Servers MUST reject media
+    types if the value does not conform to the ABNF of
+    {{Section 4.2 of MEDIATYPE}}.
 
 * executable: "Boolean" (default: false)
 
     If true, the file should be treated as an executable by
     operating systems that support this flag.
 
-### Directory properties
+### Directory Properties
 
 A FileNode with `@type` "Directory" is a collection that may
 contain child nodes.  In addition to the common properties, it
@@ -387,11 +387,11 @@ has the following property:
 
     An indication that this directory has a special role.  A
     directory with the "root" role should have a null parentId.
-    Clients MUST ignore unrecognised role values.  Values are
+    Clients MUST ignore unrecognized role values.  Values are
     registered in the "JMAP FileNode Roles" registry (see IANA
     Considerations).
 
-### SymLink properties
+### SymLink Properties
 
 A FileNode with `@type` "SymLink" is a symbolic link to another
 path in the tree.  In addition to the common properties, it has
@@ -482,111 +482,82 @@ This is a standard Foo/changes method.
 This is a standard Foo/set method, with the following differences:
 
 Since parentId creates a tree structure, an attempt to move a node
-to a parent for which this node is also an ancestor is an error,
-and an `invalidProperties` error will be returned.
+to a parent for which this node is also an ancestor is rejected
+with an "invalidProperties" error.
 
-A server MUST order creation and deletion operations within a
-single FileNode/set such that the uniqueness of sibling names is
-retained at the end of the transaction, but
-replacing an existing file can be done atomically.
+Within a single FileNode/set, the server MUST check the uniqueness
+of sibling names against the result of all its creates, updates
+and destroys together, so that a client can destroy a node and
+create its replacement in the same method.
 
-There are these additional top level arguments:
+There are these additional top-level arguments:
 
-* onDestroyRemoveChildren: "Boolean" (default: `false`)
+* onDestroyRemoveChildren: "Boolean" (default: false)
 
-   If false, an attempt to destroy a FileNode which is the parentId
-   of another FileNode will be rejected with a `nodeHasChildren`
-   error.  NOTE: if all the child nodes are being destroyed in the
-   same operation, then the server MUST NOT return this error.
-   Servers MUST either sort the destroys children before parents,
-   or only check this constraint on the final state, remembering
-   that JMAP `set` operations must be atomic.
+    If false, an attempt to destroy a FileNode that has children is
+    rejected with a "nodeHasChildren" error.  If all the children
+    are destroyed in the same method, the server MUST NOT return
+    this error: it either destroys children before their parents,
+    or checks this constraint only against the final state.
 
-   If true, then all child nodes will also be destroyed when a
-   node is destroyed.  When deleting child nodes, the server MUST
-   include the ids of all deleted nodes in the method response.
+    If true, destroying a node also destroys all its descendants,
+    and the server MUST include the ids of all of them in the
+    "destroyed" list of the response.
 
 * onExists: "String\|null" (default: null)
 
-   If null, an attempt to create or update a FileNode which would
-   cause a name collision will be rejected by the server with an
-   "alreadyExists" error.
+    Controls what happens when a create or update would give a
+    FileNode the same name as an existing sibling.
 
-   If "replace", the existing item will be destroyed.  In this
-   case, the server MUST include the id of the replaced item in
-   the destroyed response list.  NOTE: if the replaced item is a
-   Directory which has children, then the server MUST respond with
-   a nodeHasChildren error to this action unless
-   onDestroyRemoveChildren is true.
+    If null, the server rejects the create or update with an
+    "alreadyExists" error.
 
-   Replacement does not depend on the `@type` of either node; a
-   node of any type may replace a node of any other type.
+    If "replace", the server destroys the existing node, and MUST
+    include its id in the "destroyed" list of the response.  A node
+    of any `@type` may replace a node of any other `@type`.
 
-   If "rename", the server will change the "name" field to not
-   clash, using an algorithm of its choice.  If the server changes
-   the name, it MUST include the new "name" value in the created
-   or updated response field for this id.
+    If "rename", the server changes the "name" property so that it
+    does not clash, using an algorithm of its choice, and MUST
+    include the new name in the "created" or "updated" entry for
+    that id.
 
-   If "unchanged", the operation proceeds as with "replace", but
-   only if a precondition on the colliding node is satisfied.  The
-   client supplies this precondition in the "ifUnchangedBy" argument
-   ({{JMAP-CONDITIONAL}}).  The server matches it against the node
-   that occupies the contested name at the start of the method,
-   found by that node's current id: the server evaluates the
-   "ifUnchangedBy" entry whose key is that id.  If "ifUnchangedBy"
-   contains no entry for the occupant's id, or that entry's
-   precondition is not satisfied, the server MUST NOT replace the
-   node.  It rejects the operation as with null, and returns an
-   "alreadyExists" error with the `existingId` of the surviving
-   node.  This binds the replacement to the one node the client
-   expected.  If a concurrent change has moved a different node into
-   the contested name, its id does not match the supplied
-   precondition.  The server then refuses the replacement, and does
-   not destroy a node the client never saw.  As with "replace", if
-   the node to replace is a Directory with children, the server MUST
-   return a "nodeHasChildren" error unless onDestroyRemoveChildren
-   is true; it MUST also include the id of the replaced node in the
-   destroyed response list.  A server that does not support
-   {{JMAP-CONDITIONAL}} MUST reject "unchanged" with an
-   "invalidArguments" error.
+    Any other value is rejected with an "invalidArguments" error.
 
-   The server checks a non-null onExists value in this order, and
-   stops at the first check that fails:
+    "replace" destroys whichever node holds the name when the method
+    runs.  To replace only the node it expects, a client instead
+    destroys that node and creates the new one in the same
+    FileNode/set, with an "ifUnchangedBy" precondition
+    ({{JMAP-CONDITIONAL}}) on the node it destroys.
 
-   1. If the existing node is not discoverable by the user (see
-      "Access Control"), every value except "rename" fails with
-      "forbidden": the server MUST NOT destroy or compare against
-      that node, nor reveal its id.  Servers may return "forbidden"
-      for other reasons, such as a file name policy, so it does not
-      confirm that the name is taken.
+    For "replace", the server makes these checks in order, and
+    stops at the first that fails:
 
-   2. "replace" and "unchanged" require `mayDelete` on the existing
-      node, and "unchanged" also requires `mayRead` on it.  Without
-      these rights, the operation fails with "forbidden".
+    1. If the existing node is not discoverable by the user (see
+       "Access Control"), the operation fails with "forbidden", and
+       the server MUST NOT destroy that node or reveal its id.
+       Servers may also return "forbidden" for other reasons, such
+       as a file name policy, so the error does not confirm that the
+       name is taken.
 
-   3. Only after these checks does the server evaluate the
-      precondition for "unchanged".
+    2. If the user does not have `mayDelete` on the existing node,
+       the operation fails with "forbidden".
 
-   4. If the existing node is to be replaced, the server then
-      checks its children: the operation fails with
-      "nodeHasChildren" if it has children and
-      onDestroyRemoveChildren is false, or with "forbidden" if
-      replacing it would remove nodes the user cannot discover
-      (see "Access Control").
+    3. If the existing node has children, the operation fails with
+       "nodeHasChildren" if onDestroyRemoveChildren is false, or
+       with "forbidden" if replacing it would remove nodes the user
+       cannot discover (see "Access Control").
 
-   This order means that a user who lacks the rights to replace a
-   node gets "forbidden" whatever the values of that node's
-   properties, so the result cannot be used to learn properties
-   that FileNode/get would not return.
+    "rename" applies whether or not the user can discover the
+    existing node.
 
 * compareCaseInsensitively: "Boolean" (default: false)
 
-   If true, name collision checks (including `onExists` handling)
-   treat names as case-insensitive for this request.  This has no
-   effect if the server already has `caseInsensitiveNames` set to
-   true in its capability.  This allows clients syncing to
-   case-insensitive platforms to prevent name collisions that
-   would be problematic on those platforms.
+    If true, name collision checks (including `onExists` handling)
+    treat names as case-insensitive for this request.  This has no
+    effect if the server already has `caseInsensitiveNames` set to
+    true in its capability.  This allows clients syncing to
+    case-insensitive platforms to prevent name collisions that
+    would be problematic on those platforms.
 
 Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 
@@ -594,24 +565,26 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
   with a discoverable sibling FileNode, and onExists did not
   resolve it.  The SetError object MUST include an `existingId`
   property with the id of the existing FileNode.
-* "forbidden" — a name collision with a sibling the user cannot
-  discover, an onExists replacement without the required rights on
-  the existing node (see onExists above), or a destroy that would
-  remove nodes the user cannot discover (see "Access Control").
-* "invalidProperties" — an attempt was made to move a node to a
-  descendant of itself, creating a cycle in the tree, to make a
-  node the child of a node whose `@type` does not permit
-  children, to change the `@type` of a node, or to set a
-  property that is not defined for the node's `@type` to a
-  non-null value.
-* "nodeHasChildren" — a destroy was attempted on a FileNode that
-  has children, and onDestroyRemoveChildren is false.
+* "forbidden" — among other cases: a name collision with a sibling
+  the user cannot discover; an onExists replacement without the
+  required rights on the existing node (see onExists above); a
+  destroy that would remove nodes the user cannot discover; a
+  rename, move or destroy without the rights it needs, or of a
+  Directory with a role; or a create or move to the top level
+  without `mayCreateTopLevelFileNode` (see "Access Control").
+* "invalidProperties" — among other cases: an attempt to move a
+  node to a descendant of itself, creating a cycle in the tree, to
+  make a node the child of a node whose `@type` does not permit
+  children, to change the `@type` of a node, or to set a property
+  that is not defined for the node's `@type` to a non-null value.
+* "nodeHasChildren" — a destroy or onExists replacement of a
+  FileNode that has children, with onDestroyRemoveChildren false.
 
 ### FileNode/copy
 
-This is a standard Foo/copy function with the same additional
+This is a standard Foo/copy method with the same additional
 top-level arguments as FileNode/set (onDestroyRemoveChildren,
-onExists, and compareCaseInsensitively), with the same behaviour.
+onExists, and compareCaseInsensitively), with the same behavior.
 
 The response has one additional property:
 
@@ -628,7 +601,7 @@ Errors: the same additional errors as FileNode/set apply.
 
 This is a standard Foo/query method except for the following:
 
-There's one more property to the query:
+There is one additional request argument:
 
 * depth: "UnsignedInt\|null" (default: null)
 
@@ -689,7 +662,7 @@ The following filter criteria are defined:
 
 * isExecutable: "Boolean"
 
-    If `true`, the FileNode must have a true executable value.
+    If true, the FileNode must have a true executable value.
 
 * createdBefore: "UTCDate"
 
@@ -743,7 +716,7 @@ The following filter criteria are defined:
     sequence of characters, `?` matches any single character,
     and a pair of brackets matches any single character in the
     bracketed set (for example, `[abc]` matches "a", "b", or "c";
-    `[a-z]` matches any lowercase letter; `[!abc]` or `[^abc]`
+    `[a-z]` matches any letter from "a" to "z"; `[!abc]` or `[^abc]`
     matches any character not in the set).  All other characters match
     literally.  The match is case-insensitive.
 
@@ -760,18 +733,19 @@ The following filter criteria are defined:
 * body: "String"
 
     Match the content of the referenced blob, see the definition
-    of *body* in section 4.4.1 of {{JMAP-MAIL}}.  The server may
+    of *body* in {{Section 4.4.1 of JMAP-MAIL}}.  The server may
     use any technology to extract meaningful text from the blob
     for searching, or interpret the string in any way, to choose
     the nodes that it believes the user wants to see.
 
 * text: "String"
 
-    Is equivalent to *body* OR *nameMatch* OR *mediaTypeMatch*.
+    Matches a node if the *body* condition with this value
+    matches, or if its name or mediaType contains this value,
+    compared case-insensitively.
 
 The blobId, isExecutable, minSize, maxSize, mediaType,
-mediaTypeMatch, and
-body conditions match only nodes whose `@type` is "File".  The
+mediaTypeMatch, and body conditions match only nodes whose `@type` is "File".  The
 role and hasAnyRole conditions match only nodes whose `@type` is
 "Directory".  This applies to both true and false values.  For
 example, a hasAnyRole condition of false matches only Directories
@@ -791,8 +765,7 @@ It also supports the following additional sort properties:
     Sort by tree; which means by name, but any Directory node is
     immediately followed by the recursive application of
     the same sort to its child nodes.  This is similar to the
-    output of the `find` command on a filesystem with the depth
-    parameter provided above.
+    output of the `find` command on a filesystem.
 
 * nodeType:
 
@@ -804,8 +777,9 @@ When sorting by a property that is not defined for a node's
 `@type` (for example `size` on a Directory), or that FileNode/get
 returns as null because the user cannot read the node (see
 "Access Control"), nodes without the property sort before
-nodes that have it when isAscending is true.  Nodes that lack the property are ordered among themselves
-as if that Comparator were absent from the sort.
+nodes that have it when isAscending is true.  Nodes that lack the
+property are ordered among themselves as if that Comparator were
+absent from the sort.
 
 ### FileNode/queryChanges
 
@@ -819,11 +793,13 @@ update the content of a File directly via HTTP without using
 FileNode/set.  The URL is constructed by expanding the template
 with the FileNode id.  This is only valid for nodes with
 `@type` "File"; requests targeting any other type of node MUST
-be rejected with an HTTP 400 status.
+be rejected with 400 (Bad Request).  A request for a node that does
+not exist, or that the user cannot discover, MUST be rejected with
+404 (Not Found).
 
-The client MUST have `mayModifyContent` permission on the node.
-Requests without sufficient permission MUST be rejected with an
-HTTP 403 status.  Authentication uses the same mechanism as other
+The user MUST have `mayModifyContent` on the node, which for a File
+is in its parent's `myRights` (see "Access Control").  Requests
+without it MUST be rejected with 403 (Forbidden).  Authentication uses the same mechanism as other
 JMAP HTTP endpoints.
 
 ## PUT
@@ -837,7 +813,7 @@ On success, the server MUST update the node's `blobId`, `size`,
 and `mediaType` properties, and set `modified` to the current
 server time (a PUT cannot carry a client timestamp; a client that
 wants a different one sets it with FileNode/set afterwards).  It
-returns an HTTP 200 response with a JSON body:
+returns 200 (OK) with a JSON body:
 
 ~~~json
 {
@@ -859,9 +835,10 @@ current blob to produce the new content.
 
 On success, the server MUST update the node's `blobId` and
 `size` properties, and set `modified` to the current server time,
-as for PUT.  The server MUST NOT change the node's `mediaType`.  A client that needs to change it uses PUT, or
-updates `mediaType` with FileNode/set.  The response is an HTTP
-200 with the same JSON body as PUT:
+as for PUT.  The server MUST NOT change the node's `mediaType`.
+A client that needs to change it uses PUT, or updates `mediaType`
+with FileNode/set.  The response is 200 (OK) with the same JSON
+body as PUT:
 
 ~~~json
 {
@@ -872,7 +849,7 @@ updates `mediaType` with FileNode/set.  The response is an HTTP
 ~~~
 
 Servers that do not support a given patch format MUST respond
-with HTTP 415 (Unsupported Media Type).
+with 415 (Unsupported Media Type).
 
 ## Integrity
 
@@ -880,8 +857,8 @@ A PUT or PATCH request MAY carry `Repr-Digest` or `Content-Digest`
 header fields {{DIGEST-FIELDS}} for the data it sends: for PUT, the
 new content of the node; for PATCH, the patch.  The server MUST
 verify each digest whose algorithm it supports.  If any does not
-match, the server MUST respond with HTTP 400 and MUST NOT change
-the node.  As {{DIGEST-FIELDS}} describes, a digest whose algorithm
+match, the server MUST respond with 400 (Bad Request) and MUST NOT
+change the node.  As {{DIGEST-FIELDS}} describes, a digest whose algorithm
 the server does not support is ignored.  The algorithms a server
 supports are those in the `supportedDigestAlgorithms` capability of
 {{JMAP-BLOBEXT}}, which lists them in the server's order of
@@ -924,13 +901,18 @@ The user's rights on it are those in its parent's `myRights`;
 with a null parentId is discoverable only by the account owner,
 who has all rights on it.
 
-Renaming, moving or destroying a node changes the contents of its
-parent, so it is governed by the parent's rights: the server checks
-`mayRename` (to rename or move the node) and `mayDelete` (to
-destroy it) in the parent's `myRights`.  Accordingly, a Directory's
-own `myRights.mayRename` and `myRights.mayDelete` report its
-parent's values.  A Directory with a role cannot be destroyed,
-renamed or moved, and reports `mayRename` and `mayDelete` as false.
+To rename or move a node the server checks `mayRename`, and to
+destroy it `mayDelete`, in the rights of the node itself; for a
+node with no `myRights`, these are its parent's rights.  Moving a
+node also requires `mayAddChildren` on the new parent, or
+`mayCreateTopLevelFileNode` to move it to the top level.  Without
+these rights, the operation fails with "forbidden".
+
+A Directory with a role cannot be destroyed, renamed or moved; the
+server rejects any attempt with "forbidden".  This does not change
+the rights it reports in `myRights`, which its children with no
+`myRights` of their own take as theirs: files in a directory with
+the "trash" role, for example, can still be destroyed.
 
 A change to `shareWith` on a node is a change to every node in
 its subtree: the server MUST report all of them as changed in
@@ -940,8 +922,8 @@ learns the new rights of everything below a node whose sharing
 changed from FileNode/changes alone, without working out which
 nodes are affected itself.
 
-Nodes which are not "discoverable" MUST return notFound errors if
-fetched with FileNode/get and MUST NOT be returned in response to
+Nodes which are not "discoverable" MUST be reported in `notFound`
+if fetched with FileNode/get and MUST NOT be returned in response to
 FileNode/query.  Nodes are discoverable in one of two ways:
 
 1. If the node or an ancestor of the node has mayRead true.
@@ -956,10 +938,9 @@ destroyed in FileNode/changes.
 A node that is discoverable only through the second rule has
 mayRead false.  It is visible so that the user can use the
 rights granted on it, and can see the full path to the nodes
-they have access to.  This means that
-a query with that node as the parent will only return those of its
-children which are otherwise discoverable through the second
-discoverability rule.
+they have access to.  This means that a query with that node as
+the parent will only return those of its children which are
+otherwise discoverable through the second discoverability rule.
 
 For a node that is discoverable but does not have `mayRead`,
 FileNode/get returns the real values of `id`, `@type`, `name`,
@@ -982,11 +963,11 @@ onDestroyRemoveChildren, destroying such a node while it has
 children fails with "nodeHasChildren" whether or not the user can
 discover those children.
 
-This leads to a sharee seeing the full path to anything that they have
-access to, but nothing else.
+This leads to a sharee seeing the full path to anything that they
+have access to, but nothing else.
 
-For example, in a unix homedirectory environment where user Alice had shared
-the "forBob" folder, one might see, when logged in as Bob:
+For example, in a Unix home directory layout where Alice has shared
+her "forBob" directory, Bob might see:
 
 ~~~artwork
 /home
@@ -1001,13 +982,12 @@ the "forBob" folder, one might see, when logged in as Bob:
     ...
 ~~~
 
-While Alice would see many more files and folders at the home
-directory level.
+Alice sees many more files and directories under "/home".
 
-This does lead to potentially large changes in the visible Node
-set, so when Alice first shared that directory, Bob would have
-been told of a large number of new Nodes in response to a
-FileNode/changes query.  The server might report these as
+Sharing can make large changes to the set of nodes a user can see:
+when Alice first shared that directory, Bob would have been told
+of a large number of new nodes in response to a FileNode/changes
+query.  The server might report these as
 "created" or "updated" — it is not always possible for the server
 to know whether a node was previously visible to the user.
 
@@ -1015,8 +995,8 @@ to know whether a node was previously visible to the user.
 
 Servers that support JMAP Quotas ({{JMAP-QUOTAS}}) SHOULD
 provide Quota objects with `"FileNode"` in the `types` array.
-Both the `octets` resource type (total storage used by file
-node blobs) and the `count` resource type (number of FileNode
+Both the `octets` resource type (total storage used by FileNode
+blobs) and the `count` resource type (number of FileNode
 objects) are applicable.
 
 # Integration with JMAP Blob Extensions
@@ -1027,26 +1007,28 @@ When a server advertises both `urn:ietf:params:jmap:filenode` and
 properties:
 
 * nodeId: "Id\|null"
-  A FileNode id.  When present, the server populates the
-  archive entry from the referenced FileNode's properties.
-  The `blobId` and `name` are taken from the FileNode.  The
-  FileNode's `created` and `modified` timestamps map to the
-  archive entry's time metadata.  The user's rights on the
-  FileNode (specifically the `mayModifyContent` right) and,
-  for a File, the `executable` property inform the `mode` field in the
-  archive entry (for example, permissions and executable bit).
-  If the ArchiveEntry also provides explicit values for
-  any of these properties, the explicit values take
-  precedence.  Mutually exclusive with providing `blobId`
-  directly when the FileNode's `@type` is "File".
+
+    A FileNode id.  When present, the server populates the
+    archive entry from the referenced FileNode's properties.
+    The `blobId` and `name` are taken from the FileNode.  The
+    FileNode's `created` and `modified` timestamps map to the
+    archive entry's time metadata.  The user's rights on the
+    FileNode (specifically the `mayModifyContent` right) and,
+    for a File, the `executable` property inform the `mode` field in the
+    archive entry (for example, permissions and executable bit).
+    If the ArchiveEntry also provides explicit values for
+    any of these properties, the explicit values take
+    precedence.  Mutually exclusive with providing `blobId`
+    directly when the FileNode's `@type` is "File".
 
 * recurse: "Boolean" (default: false)
-  Only valid when the referenced FileNode's `@type` is
-  "Directory".
-  When true, the server recursively includes all children
-  of the directory in the archive.  Each child entry's
-  `name` is its full path relative to the directory.
-  Directory names MUST include a trailing `/`.
+
+    Only valid when the referenced FileNode's `@type` is
+    "Directory".
+    When true, the server recursively includes all children
+    of the directory in the archive.  Each child entry's
+    `name` is its full path relative to the directory.
+    Directory names MUST include a trailing `/`.
 
 A FileNode with `@type` "SymLink", whether referenced directly by
 `nodeId` or reached by `recurse`, is added to the archive as an
@@ -1062,12 +1044,13 @@ Some archive formats cannot hold every node type.  For example,
 property that controls how the server handles such nodes:
 
 * onUnsupportedEntry: "String" (default: "error")
-  This applies to any node, referenced by `nodeId` or reached by
-  `recurse`, that the archive format cannot represent.  If
-  "error", the server rejects the Blob/convert creation with an
-  "unsupportedEntry" SetError, and creates no archive.  If
-  "skip", the server leaves such nodes out of the archive.  Any
-  other value is an "invalidProperties" error.
+
+    This applies to any node, referenced by `nodeId` or reached by
+    `recurse`, that the archive format cannot represent.  If
+    "error", the server rejects the Blob/convert creation with an
+    "unsupportedEntry" SetError, and creates no archive.  If
+    "skip", the server leaves such nodes out of the archive.  Any
+    other value is an "invalidProperties" error.
 
 This property applies only to entries that the server builds
 from FileNodes.  An entry that the client gives in full, with an
@@ -1076,14 +1059,14 @@ unsupported `entryType`, is still an "invalidProperties" error as
 
 If `nodeId` references a FileNode that the user does not have
 permission to read, or that does not exist, the server MUST
-reject the Blob/convert creation with a `notFound` SetError.
+reject the Blob/convert creation with a "notFound" SetError.
 
 ## Examples
 
 To archive an entire directory tree rooted at FileNode
 "dirabc" into a zip file:
 
-```json
+~~~json
 [["Blob/convert", {
   "accountId": "account1",
   "create": {
@@ -1099,12 +1082,12 @@ To archive an entire directory tree rooted at FileNode
     }
   }
 }, "R1"]]
-```
+~~~
 
 To archive specific files from different locations along with
 a full subdirectory:
 
-```json
+~~~json
 [["Blob/convert", {
   "accountId": "account1",
   "create": {
@@ -1126,7 +1109,7 @@ a full subdirectory:
     }
   }
 }, "R1"]]
-```
+~~~
 
 ## Extracting Archives into FileNodes
 
@@ -1135,47 +1118,50 @@ When both capabilities are present, the ExtractRecipe
 additional properties:
 
 * parentNodeId: "Id\|null"
-  The id of a FileNode with `@type` "Directory".  When
-  present, the server extracts the archive contents into this
-  directory, creating FileNode objects for each entry.
-  Subdirectories in the archive are created as FileNodes with
-  `@type` "Directory".  File entries become FileNodes with
-  `@type` "File" and their `blobId` set to the extracted
-  content.  The `created` and `modified` timestamps are taken
-  from the archive entry metadata.  If the archive entry
-  includes a `mode` field, the server SHOULD use it to set the
-  `executable` property on the created FileNode.
 
-  Symlink entries become FileNodes with `@type` "SymLink" if
-  "SymLink" is in the `supportedNodeTypes` capability.  The
-  server splits the entry's `linkTarget` on "/" to produce the
-  `target` path elements.  A `linkTarget` that starts with "/"
-  produces an empty string as the first element, which marks an
-  absolute path.  The server drops any other empty elements.
+    The id of a FileNode with `@type` "Directory".  When
+    present, the server extracts the archive contents into this
+    directory, creating FileNode objects for each entry.
+    Subdirectories in the archive are created as FileNodes with
+    `@type` "Directory".  File entries become FileNodes with
+    `@type` "File" and their `blobId` set to the extracted
+    content.  The `created` and `modified` timestamps are taken
+    from the archive entry metadata.  If the archive entry
+    includes a `mode` field, the server SHOULD use it to set the
+    `executable` property on the created FileNode.
 
-  An entry is unsupported if the server cannot create a FileNode
-  for it.  These are symlink entries when "SymLink" is not in
-  `supportedNodeTypes`, and entries of any type that has no
-  FileNode equivalent ("hardlink", "fifo", "blockDevice", and
-  "charDevice").  The `onUnsupportedEntry` property controls how
-  the server handles them.
+    Symlink entries become FileNodes with `@type` "SymLink" if
+    "SymLink" is in the `supportedNodeTypes` capability.  The
+    server splits the entry's `linkTarget` on "/" to produce the
+    `target` path elements.  A `linkTarget` that starts with "/"
+    produces an empty string as the first element, which marks an
+    absolute path.  The server drops any other empty elements.
+
+    An entry is unsupported if the server cannot create a FileNode
+    for it.  These are symlink entries when "SymLink" is not in
+    `supportedNodeTypes`, and entries of any type that has no
+    FileNode equivalent ("hardlink", "fifo", "blockDevice", and
+    "charDevice").  The `onUnsupportedEntry` property controls how
+    the server handles them.
 
 * onUnsupportedEntry: "String" (default: "error")
-  If "error", the server rejects the Blob/convert creation with
-  an "unsupportedEntry" SetError, and creates no FileNodes.  If
-  "skip", the server does not create a FileNode for an
-  unsupported entry, and extracts the other entries as usual.  A
-  skipped entry still appears in the response `entries` array,
-  with a null `nodeId`.  Any other value is an
-  "invalidProperties" error.
+
+    If "error", the server rejects the Blob/convert creation with
+    an "unsupportedEntry" SetError, and creates no FileNodes.  If
+    "skip", the server does not create a FileNode for an
+    unsupported entry, and extracts the other entries as usual.  A
+    skipped entry still appears in the response `entries` array,
+    with a null `nodeId`.  Any other value is an
+    "invalidProperties" error.
 
 * onExists: "String\|null" (default: null)
-  Controls the behaviour when an extracted entry would collide
-  with an existing FileNode name under the same parent.  The
-  values and semantics are the same as for FileNode/set (see
-  above): null rejects with an `alreadyExists` SetError,
-  "replace" destroys the existing node, and "rename" gives the new
-  node a server-chosen name.
+
+    Controls the behavior when an extracted entry would collide
+    with an existing FileNode name under the same parent.  The
+    values and semantics are the same as for FileNode/set (see
+    above): null rejects with an "alreadyExists" SetError,
+    "replace" destroys the existing node, and "rename" gives the new
+    node a server-chosen name.
 
 When `parentNodeId` is set, each ArchiveEntry in the response
 `entries` array includes an additional `nodeId` property
@@ -1185,14 +1171,14 @@ entry, or null if the server skipped the entry.
 If `parentNodeId` references a FileNode that does not exist,
 is not a Directory, or for which the user does not have
 `mayAddChildren` permission, the server MUST reject the Blob/convert
-creation with an appropriate SetError (`notFound`,
-`invalidProperties`, or `forbidden`).
+creation with an appropriate SetError ("notFound",
+"invalidProperties", or "forbidden").
 
 ### Example
 
 Extracting a zip file into a directory:
 
-```json
+~~~json
 [["Blob/convert", {
   "accountId": "account1",
   "create": {
@@ -1205,11 +1191,11 @@ Extracting a zip file into a directory:
     }
   }
 }, "R1"]]
-```
+~~~
 
 The response includes a `nodeId` for each created entry:
 
-```json
+~~~json
 [["Blob/convert", {
   "accountId": "account1",
   "created": {
@@ -1244,7 +1230,7 @@ The response includes a `nodeId` for each created entry:
   },
   "notCreated": {}
 }, "R1"]]
-```
+~~~
 
 ## The unsupportedEntry Error
 
@@ -1270,14 +1256,14 @@ properties to the FileNode object.  They are common properties, available on
 FileNodes of every `@type`, because platforms also attach named attributes to
 directories and symbolic links.
 
-## The "xattr" namespace
+## The "xattr" Namespace
 
 This document defines the "xattr" namespace for the "metadata" and
 "privateMetadata" properties.  Its value is an object mapping an attribute name
 to the attribute's value.  The attribute name is the platform-native name of
 the attribute or stream, stored verbatim (for example "user.comment",
 "com.apple.metadata:_kMDItemUserTags", or "Zone.Identifier").  Servers and
-clients MUST NOT normalise attribute names across platforms.  The server keeps
+clients MUST NOT normalize attribute names across platforms.  The server keeps
 an attribute that one platform writes, even where another platform has no
 equivalent for it.
 
@@ -1356,7 +1342,8 @@ that the directory's contents have changed.
 
 ## Timestamp Precision
 
-The UTCDate type (RFC 3339) supports fractional seconds.
+The UTCDate type ({{Section 1.4 of JMAP-CORE}}) supports
+fractional seconds.
 Servers SHOULD include sub-second precision in `created`,
 `modified`, `accessed`, and `changed` timestamps where their
 storage backend supports it.  Clients MUST preserve fractional
@@ -1366,7 +1353,7 @@ A server MAY store timestamps with less precision than a client
 sends, down to whole seconds.  It then truncates the value it
 stores, and returns the stored value in FileNode/get, so a client
 can learn the precision in use.  Clients comparing a local time
-with a server timestamp (for example to recognise their own
+with a server timestamp (for example to recognize their own
 changes) need to allow for this.  Comparisons the server makes
 between timestamps use the stored precision.
 
@@ -1375,7 +1362,7 @@ between timestamps use the stored precision.
 Servers should set `forbiddenNameChars` to include characters
 that are problematic for their storage backend and for the
 broadest set of clients, and may reject names that are
-problematic (see "name" in "Common properties").
+problematic (see "name" in "Common Properties").
 
 The following characters are problematic on common platforms:
 
@@ -1418,7 +1405,7 @@ or if more than 24 hours have elapsed since the last `accessed`
 update.  Clients should batch access time updates with their
 next JMAP request rather than making a dedicated call.
 
-# Security considerations
+# Security Considerations
 
 All security considerations from {{JMAP-CORE}} apply to this document.
 
@@ -1499,9 +1486,9 @@ scan blobs referenced by FileNode objects.  The `mediaType` property is
 client-asserted and MUST NOT be trusted for security decisions;
 servers SHOULD independently verify content types where this matters.
 
-# IANA considerations
+# IANA Considerations
 
-## JMAP Capability registration for "filenode"
+## JMAP Capability Registration for "filenode"
 
 IANA is requested to register the "filenode" JMAP Capability as follows:
 
@@ -1516,7 +1503,7 @@ Change Controller: IETF
 Security and privacy considerations: this document, Security Considerations
 
 
-## JMAP Error Codes registration for "nodeHasChildren"
+## JMAP Error Codes Registration for "nodeHasChildren"
 
 IANA is requested to register the "nodeHasChildren" JMAP Error Code as follows:
 
@@ -1526,11 +1513,11 @@ Intended use: common
 
 Change Controller: IETF
 
-Description: The node being destroyed is still referenced by other nodes which have not been destroyed.
+Description: A FileNode could not be destroyed or replaced because it has children, and the client did not ask for them to be destroyed too.
 
 Reference: this document
 
-## JMAP Error Codes registration for "unsupportedEntry"
+## JMAP Error Codes Registration for "unsupportedEntry"
 
 IANA is requested to register the "unsupportedEntry" JMAP Error Code as follows:
 
@@ -1544,7 +1531,7 @@ Description: An archive or extraction found entries that the archive format or t
 
 Reference: this document
 
-## JMAP Data Types registration for "FileNode"
+## JMAP Data Types Registration for "FileNode"
 
 IANA is requested to register the "FileNode" JMAP Data Type as follows:
 
@@ -1567,17 +1554,20 @@ A registration MUST reference a specification that defines the
 properties specific to the type and whether nodes of the type
 may have children.
 
-| Type      | Description                                    | Reference      |
-|-----------|------------------------------------------------|----------------|
-| File      | A regular file with blob content               | this document  |
-| Directory | A collection that may contain child nodes      | this document  |
-| SymLink   | A symbolic link to another path in the tree    | this document  |
+| Type      | Description                                 | Children | Reference     |
+|-----------|---------------------------------------------|----------|---------------|
+| File      | A regular file with blob content            | No       | this document |
+| Directory | A collection that may contain child nodes   | Yes      | this document |
+| SymLink   | A symbolic link to another path in the tree | No       | this document |
 
 ## JMAP FileNode Roles Registry
 
 IANA is requested to create a new "JMAP FileNode Roles" registry
 with the following initial values.  New registrations are subject
-to Expert Review ({{IANA-GUIDELINES}}).
+to Expert Review ({{IANA-GUIDELINES}}).  The Designated Expert
+checks that a new role is not already covered by an existing one,
+and that its description says which directory a client should
+give it.
 
 | Role      | Description                                          | Reference      |
 |-----------|------------------------------------------------------|----------------|
@@ -1612,10 +1602,6 @@ Intended Usage: common
 
 Change Controller: IETF
 
-# TODO
-
-* create real-world clients to test this
-
 # Changes
 
 EDITOR: please remove this section before publication.
@@ -1628,10 +1614,12 @@ The source of this document exists on github at: https://github.com/brong/draft-
   account (top-level nodes are at depth 0), whatever the filter, and
   absent or null now means no limit rather than "do not recurse".
   FileNode/queryChanges takes it too.
-* Renaming, moving or destroying a node is governed by its parent's
-  `mayRename` and `mayDelete`, which a Directory's own `myRights`
-  report.  A Directory with a role cannot be destroyed, renamed or
-  moved.
+* Renaming, moving or destroying a node checks `mayRename` or
+  `mayDelete` on the node itself, which for a node without
+  `myRights` are its parent's rights.  Moving also needs
+  `mayAddChildren` on the new parent.  A Directory with a role
+  cannot be destroyed, renamed or moved, without changing the
+  rights it reports.
 * A node that stops being discoverable is reported as destroyed in
   FileNode/changes.
 * `isSubscribed` is per user, and setting it needs no rights beyond
@@ -1643,10 +1631,13 @@ The source of this document exists on github at: https://github.com/brong/draft-
   express the names that matter (such as "CON.txt"), clients did
   not use it, and a server can reject names it cannot store
   regardless.
-* Removed the "newest" value of `onExists`.  It only applied to
-  name collisions, compared client clocks, and was easily mistaken
-  for a content precondition; "unchanged" with {{JMAP-CONDITIONAL}}
-  is the way to replace a node only if it is the one expected.
+* Removed the "newest" and "unchanged" values of `onExists`.
+  "newest" compared client clocks and was easily mistaken for a
+  content precondition.  "unchanged" duplicated, and conflicted
+  with, {{JMAP-CONDITIONAL}}: to replace a node only if it is the
+  one expected, a client destroys it and creates the replacement in
+  one FileNode/set, with an "ifUnchangedBy" precondition on the
+  destroy.  {{JMAP-CONDITIONAL}} is now an informative reference.
 * Creating or moving a node to the top level without
   `mayCreateTopLevelFileNode` fails with "forbidden".
 * Direct HTTP Write PUT and PATCH set `modified` to the current
@@ -1673,6 +1664,21 @@ The source of this document exists on github at: https://github.com/brong/draft-
   was wrong under {{JMAP-METADATA}}'s depth rules.
 * Added security considerations for extended attributes that grant
   privileges and for download markers.
+* Direct HTTP Write returns 404 for a node that does not exist or
+  is not discoverable, and `mayModifyContent` for a File is its
+  parent's.  The `modified` definition notes that Direct HTTP Write
+  sets it.
+* The `text` query condition matches name and mediaType by
+  substring rather than as a glob.
+* Added a children column to the "JMAP FileNode Types" registry,
+  and guidance for the Designated Expert of the "JMAP FileNode
+  Roles" registry.
+* {{JMAP-BLOBEXT}} and {{JMAP-CONDITIONAL}} now reference the
+  working group drafts.  {{JMAP-MAIL}}, {{JMAP-QUOTAS}} and
+  {{UNICODE}} are normative references.
+* Removed the TODO section, and made editorial fixes throughout:
+  American spelling, error codes and section references written
+  consistently, heading case, and list formatting.
 
 **draft-ietf-jmap-filenode-18**
 
