@@ -575,8 +575,10 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 * "invalidProperties" — among other cases: an attempt to move a
   node to a descendant of itself, creating a cycle in the tree, to
   make a node the child of a node whose `@type` does not permit
-  children, to change the `@type` of a node, or to set a property
-  that is not defined for the node's `@type` to a non-null value.
+  children, to change the `@type` of a node, to set a property
+  that is not defined for the node's `@type` to a non-null value,
+  or a create or move that would place the node, or any of its
+  descendants, deeper than `maxFileNodeDepth`.
 * "nodeHasChildren" — a destroy or onExists replacement of a
   FileNode that has children, with onDestroyRemoveChildren false.
 
