@@ -304,8 +304,9 @@ regardless of its type:
 
     A change to a per-user property (`isSubscribed`, or
     `privateMetadata` (see "Extended Attributes and Named
-    Streams")), or to `myRights` because of a `shareWith` change
-    on an ancestor, need not update `changed`.  The server SHOULD
+    Streams")), or to the node's rights because of a change to an
+    ancestor's `shareWith` or a move (see "Access Control"), need
+    not update `changed`.  The server SHOULD
     report a per-user change in FileNode/changes only to the
     users whose value changed.  It MAY update `changed`, and
     report the node in FileNode/changes, for other users too
@@ -634,61 +635,40 @@ onExists, and compareCaseInsensitively), with the same behavior.
 These arguments apply to the nodes created and replaced in the
 destination account.
 
-Copying a Directory copies its whole subtree: the server creates
-a copy of each descendant beneath the copy of its parent, with the
-same names.  The copy of a Directory and of all its descendants
-succeeds or fails as a whole.  If any part fails, the server
-creates none of it, and returns the SetError in "notCreated" for
-the Directory's creation id.  A client that wants only part of a
-tree instead creates the Directories it wants with FileNode/set,
-and copies the nodes it wants into them.  The server MUST resolve
-a `parentId` given as a creation id reference ("#" followed by the
-creation id) to a node created earlier in the same call.
+Each copy is a new node, with a new id and a new `changed` value.
+It has the same `created`, `modified` and `accessed` values as its
+original, unless the client gives others.  For a File, the server
+copies the content of its blob into the destination account; the
+blob need not already exist there, and the new `blobId` may
+differ.  As with extracting an archive, `shareWith` is not
+copied, even within one account, and per-user properties, such as
+`isSubscribed`, take their default values.
 
-For a File, the server copies the content of its blob into the
-destination account; the blob need not already exist there.  The
-new node's `blobId` may differ from the original's.
+Copying a Directory copies its whole subtree.  The result is as if
+the server archived the Directory's contents (with `recurse`; see
+"Integration with JMAP Blob Extensions") and extracted them into
+the new Directory: each descendant is copied, with the same name
+and timestamps, beneath the copy of its parent.  The copy of a
+Directory and all its descendants succeeds or fails as a whole.
+The response gives only the id of the new Directory; a client
+that wants the ids of the new descendants finds them with
+FileNode/query, using an `ancestorId` condition with that id.
 
-Each copy, including each descendant copied with a Directory,
-has the same `created`, `modified` and `accessed` values as its
-original, and a new `changed` value.  For a node in the `create`
-argument, any value the client gives takes precedence.
-`shareWith` is not copied, since it refers to users of the source
-account; the copy is shared with nobody until the client sets it.
-Per-user properties, such as `isSubscribed`, take their default
-values.
+If onSuccessDestroyOriginal is true, the implicit FileNode/set
+call that destroys the originals ({{Section 5.4 of JMAP-CORE}})
+has onDestroyRemoveChildren true, since the descendants were
+copied too.  The copy and the destroy are not atomic.  A client
+that must not lose a node added to the tree in between passes
+destroyFromIfInState, so that the destroy fails if the source
+account has changed.
 
-If onSuccessDestroyOriginal is true, the server destroys the
-originals with an implicit FileNode/set call in the source
-account, as {{Section 5.4 of JMAP-CORE}} describes.  Since the
-descendants of a copied Directory were copied with it, that call
-has onDestroyRemoveChildren true, whatever the value given for the
-copy, and its "destroyed" list includes those descendants.  The
-copy and the destroy are not atomic, so the tree may change in
-between.  The server MUST NOT destroy a descendant that was not
-copied, such as a node added to the tree after the server read
-it; if there is one, the destroy of each of its ancestors fails
-with "nodeHasChildren".
+Unlike other Foo/copy methods ({{Section 5.4 of JMAP-CORE}}),
+FileNode/copy allows `accountId` to be the same as
+`fromAccountId`, so a client can copy a node or a tree within one
+account.  An attempt to copy a Directory into itself or one of its
+descendants is rejected with "invalidProperties".
 
-There is one additional request argument:
-
-* fetchCopiedDescendants: "Boolean" (default: false)
-
-    If true, the server returns the `copiedDescendants` map
-    described below.  A large tree can have many descendants, so a
-    client that does not need the ids of their copies leaves this
-    false, and can find them later with FileNode/query (for
-    example, with an `ancestorId` condition) or FileNode/changes.
-
-The response has two additional properties:
-
-* copiedDescendants: "Id\[Id]\|null"
-
-    If fetchCopiedDescendants is true, a map from the id of each
-    descendant copied with a Directory (in the source account) to
-    the id of its copy (in the destination account).  This is null
-    if fetchCopiedDescendants is false, or if no descendants were
-    copied.
+The response has one additional property:
 
 * destroyed: "Id\[\]\|null"
 
@@ -1053,13 +1033,20 @@ the "trash" role, for example, can still be destroyed.  A client
 that needs to destroy, rename or move such a Directory first clears
 its role (see "role" in "Directory Properties").
 
-A change to `shareWith` on a node is a change to every node in
-its subtree: the server MUST report all of them as changed in
-FileNode/changes, including nodes that have no `myRights` of their
-own and take their rights from their parent.  A client therefore
-learns the new rights of everything below a node whose sharing
-changed from FileNode/changes alone, without working out which
-nodes are affected itself.
+A node's rights can change without any change to the node
+itself: through a change to `shareWith` on an ancestor, or when
+the node or an ancestor moves to a parent whose inherited rights
+differ.  The server MUST report every node whose rights for a user
+changed as changed in FileNode/changes for that user, including
+nodes that have no `myRights` of their own and take their rights
+from their parent.  A client therefore learns the new rights of
+everything in the subtree from FileNode/changes alone, without
+working out which nodes are affected itself.
+
+Otherwise, moving or renaming a node changes only that node.  Its
+descendants keep all their properties (their path is not a
+property), so the server does not report them in FileNode/changes
+unless their rights changed.
 
 Nodes which are not "discoverable" MUST be reported in `notFound`
 if fetched with FileNode/get and MUST NOT be returned in response to
@@ -1818,14 +1805,17 @@ The source of this document exists on github at: https://github.com/brong/draft-
   lifts the restrictions on destroying, renaming and moving the
   Directory.  (Thanks to Mark Atwood.)
 * FileNode/copy of a Directory copies its whole subtree, as a
-  whole or not at all.  With `fetchCopiedDescendants`, the response
-  maps the ids of copied descendants to the ids of their copies in
-  `copiedDescendants`.
-  File content is copied into the destination account, `shareWith`
-  is not copied, and per-user properties take their defaults.  The
-  implicit destroy for onSuccessDestroyOriginal removes the copied
-  descendants too, but never a node that was not copied.  (Thanks
-  to Mark Atwood.)
+  whole or not at all, as if archived and extracted into the new
+  Directory.  File content is copied into the destination account,
+  `shareWith` is not copied, and per-user properties take their
+  defaults.  The implicit destroy for onSuccessDestroyOriginal
+  removes the descendants too; destroyFromIfInState guards against
+  changes in between.  FileNode/copy may copy within one account,
+  relaxing the RFC 8620 rule that the accounts differ.  (Thanks to
+  Mark Atwood.)
+* Moving a node reports its descendants in FileNode/changes only
+  when their inherited rights change, under the same rule as a
+  `shareWith` change on an ancestor.
 * Direct HTTP Write returns a strong entity tag in ETag (the
   `blobId` is recommended), and honors If-Match with 412
   (Precondition Failed); clients SHOULD send If-Match on PATCH.  Defined the
