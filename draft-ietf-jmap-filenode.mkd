@@ -1030,8 +1030,9 @@ properties:
     Only valid when the referenced FileNode's `@type` is
     "Directory".
     When true, the server recursively includes all children
-    of the directory in the archive.  Each child entry's
-    `name` is its full path relative to the directory.
+    of the directory in the archive.  Each descendant's
+    `name` is the `name` of the referencing entry followed by
+    its path relative to the directory.
     Directory names MUST include a trailing `/`.
 
 A FileNode with `@type` "SymLink", whether referenced directly by
@@ -1079,7 +1080,7 @@ To archive an entire directory tree rooted at FileNode
         "type": "application/zip",
         "entries": [{
           "nodeId": "dirabc",
-          "name": "/",
+          "name": "project/",
           "recurse": true
         }]
       }
