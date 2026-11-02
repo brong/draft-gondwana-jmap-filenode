@@ -408,7 +408,11 @@ the following property:
     empty string as the first element indicates an absolute
     path from the root of the tree; otherwise the path is
     relative to the symlink's parent.  An element of ".." refers
-    to the parent directory.  The target is not required to
+    to the parent directory.  The root of the tree is the set of
+    nodes with a null parentId, not a Directory with the "root"
+    role.  A relative target on a node with a null parentId
+    resolves from the root, and a ".." element at the root does
+    not resolve.  The target is not required to
     resolve to an existing node (symlinks may dangle).  The
     target is mutable; updating it changes where the symlink
     points.  This MUST be provided on creation.  Setting
