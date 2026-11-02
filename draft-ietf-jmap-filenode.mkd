@@ -1154,7 +1154,10 @@ additional properties:
     for it.  These are symlink entries when "SymLink" is not in
     `supportedNodeTypes`, and entries of any type that has no
     FileNode equivalent ("hardlink", "fifo", "blockDevice", and
-    "charDevice").  The `onUnsupportedEntry` property controls how
+    "charDevice").  An entry is also unsupported if its name
+    contains a ".." or empty path component, starts with "/", or
+    would produce a name or depth that the server would reject in
+    FileNode/set.  The `onUnsupportedEntry` property controls how
     the server handles them.
 
 * onUnsupportedEntry: "String" (default: "error")
@@ -1428,7 +1431,10 @@ Clients that reconstruct filesystem paths from FileNode hierarchies
 MUST validate the resulting paths and reject any that would escape
 the intended directory tree.  Servers SHOULD include `/` in
 `forbiddenNameChars` and reject the names `.` and `..` to
-prevent path traversal attacks via node names.
+prevent path traversal attacks via node names.  When extracting
+an archive into FileNodes, the server builds the tree itself, so
+entry names that could escape `parentNodeId` are treated as
+unsupported entries (see "Extracting Archives into FileNodes").
 
 ## Symlink Targets
 
