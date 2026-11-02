@@ -21,7 +21,7 @@ author:
 normative:
     JMAP-CORE: RFC8620
     JMAP-SHARING: RFC9670
-    MEDIATYPE: RFC6838
+    MEDIA-TYPES: RFC6838
     URI-TEMPLATE: RFC6570
     IANA-GUIDELINES: RFC8126
     JMAP-BLOBEXT: I-D.ietf-jmap-blobext
@@ -380,7 +380,7 @@ following properties:
     registered in the IANA media-types registry, but servers MUST
     NOT reject media types that are not recognized.  Servers MUST reject media
     types if the value does not conform to the ABNF of
-    {{Section 4.2 of MEDIATYPE}}.
+    {{Section 4.2 of MEDIA-TYPES}}.
 
 * executable: "Boolean" (default: false)
 
@@ -1111,9 +1111,8 @@ properties:
 
     A FileNode id.  When present, the server populates the
     archive entry from the referenced FileNode's properties.
-    The `blobId` and `name` are taken from the FileNode.  The
-    FileNode's `created` and `modified` timestamps map to the
-    archive entry's time metadata.  The user's rights on the
+    The `blobId`, `name`, `created`, and `modified` are taken
+    from the FileNode.  The user's rights on the
     FileNode (specifically the `mayModifyContent` right) and,
     for a File, the `executable` property inform the `mode` field in the
     archive entry (for example, permissions and executable bit).
@@ -1227,8 +1226,8 @@ additional properties:
     Subdirectories in the archive are created as FileNodes with
     `@type` "Directory".  File entries become FileNodes with
     `@type` "File" and their `blobId` set to the extracted
-    content.  The `created` and `modified` timestamps are taken
-    from the archive entry metadata.  If the archive entry
+    content.  The FileNode's `created` and `modified` are taken
+    from the archive entry's, when it has them.  If the archive entry
     includes a `mode` field, the server SHOULD use it to set the
     `executable` property on the created FileNode.
 
@@ -1747,6 +1746,9 @@ EDITOR: please remove this section before publication.
 The source of this document exists on github at: https://github.com/brong/draft-gondwana-jmap-filenode/
 
 **draft-ietf-jmap-filenode-20**
+
+* `created` and `modified` map to the ArchiveEntry properties of the
+  same names in both directions.
 
 * A create or move that would place a node, or any of its
   descendants, deeper than `maxFileNodeDepth` fails with
