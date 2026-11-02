@@ -30,6 +30,7 @@ normative:
     JMAP-QUOTAS: RFC9425
     DIGEST-FIELDS: RFC9530
     UNICODE: RFC5198
+    UNICODE-CASEMAP: RFC5051
 
 informative:
     CALDAV: RFC4791
@@ -66,6 +67,9 @@ for remote filesystem access.
 ## Conventions Used in This Document
 
 {::boilerplate bcp14-tagged}
+
+Where this document compares names case-insensitively, the comparison
+uses the "i;unicode-casemap" collation {{UNICODE-CASEMAP}}.
 
 # Addition to the Capabilities Object
 
