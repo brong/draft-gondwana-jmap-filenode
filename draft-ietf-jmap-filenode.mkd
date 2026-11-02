@@ -97,9 +97,9 @@ on server capabilities and permissions for that account:
 
 * maxFileNodeDepth: "UnsignedInt\|null"
 
-    The maximum depth of the FileNode hierarchy (that is, one more than
-    the maximum number of ancestors a FileNode may have), or null for
-    no limit.
+    The maximum number of levels in the FileNode hierarchy, or null
+    for no limit.  A FileNode may have at most one fewer ancestors
+    than this value, so 1 allows only top-level nodes.
 
 * maxSizeFileNodeName: "UnsignedInt"
 
@@ -143,12 +143,12 @@ on server capabilities and permissions for that account:
 
 * webTrashUrl: "String\|null"
 
-    The URL at which the folder with the "trash" role can be viewed
+    The URL at which the Directory with the "trash" role can be viewed
     on the web.  If null, there is no web URL available.
 
 * caseInsensitiveNames: "Boolean"
 
-    If true, the server treats file names as case-insensitive for
+    If true, the server treats node names as case-insensitive for
     all name collision checks, including the sibling uniqueness
     constraint and `onExists` handling.  The server preserves the
     original case as provided by the client.
@@ -212,8 +212,6 @@ than set to null.  An attempt to create or update a FileNode
 that sets a property not defined for its `@type` to a non-null
 value is an "invalidProperties" error.  The server MUST ignore a
 null value for such a property, both on create and on update.
-This lets a client send the same set of properties for nodes of
-any type.
 
 As in {{Section 5.3 of JMAP-CORE}}, setting a property that has a
 default value to null, on create or update, sets it to that
@@ -272,26 +270,20 @@ regardless of its type:
 
 * created: "UTCDate" (default: current server time)
 
-    The date the node was created.
+    The date the node was created.  The server never updates it
+    automatically.
 
-* modified: "UTCDate\|null" (default: current server time)
+* modified: "UTCDate" (default: current server time)
 
-    The date the node was last updated.  The server does not
-    automatically update this value, except on a Direct HTTP Write
-    (see "Direct HTTP Write").  If the client does not
-    include `modified` in an update, the server MUST leave it
-    unchanged.  If the client sets `modified` to null, the
-    server MUST set it to the current server time.  See
-    "Implementation Considerations" for usage guidance.
+    The date the content of the node was last modified.  The
+    server updates it automatically only on a Direct HTTP Write.
+    See "Modification Timestamps" for usage guidance.
 
-* accessed: "UTCDate\|null" (default: current server time)
+* accessed: "UTCDate" (default: current server time)
 
-    The date the node was last accessed.  As with `modified`,
-    the server does not automatically update this value; clients
-    SHOULD provide an updated value when appropriate.  If not
-    included in an update, the server MUST leave it unchanged.
-    If set to null, the server MUST set it to the current server
-    time.
+    The date the node was last accessed.  The server never updates
+    it automatically.  Clients SHOULD provide an updated value when appropriate (see
+    "Access Time Updates").
 
 * changed: "UTCDate" (server-set)
 
@@ -299,8 +291,9 @@ regardless of its type:
     this node that has the same value for every user.  The server
     MUST automatically update this value whenever such a property
     is modified, including `blobId`, `name`, `parentId`,
-    `shareWith`, `executable`, and all other mutable properties.
-    This is not settable by clients.
+    `shareWith`, `executable`, `metadata`, and the other mutable
+    properties that are not per-user.  This is not settable by
+    clients.
 
     A change to a per-user property (`isSubscribed`, or
     `privateMetadata` (see "Extended Attributes and Named
@@ -308,12 +301,10 @@ regardless of its type:
     ancestor's `shareWith` or a move (see "Access Control"), need
     not update `changed`.  The server SHOULD
     report a per-user change in FileNode/changes only to the
-    users whose value changed.  It MAY update `changed`, and
-    report the node in FileNode/changes, for other users too
+    users whose value changed.  It MAY instead update `changed`,
+    and report the node in FileNode/changes to other users too,
     when it cannot efficiently determine which users are
-    affected: for example, when the value is held for a group of
-    users.  A node reported in FileNode/changes therefore need not
-    have any property that has changed for the current user.
+    affected, such as when the value is held for a group.
 
 ### Container Properties
 
@@ -331,19 +322,19 @@ rights come from their parent (see "Access Control").
 
 * myRights: "FilesRights" (server-set)
 
-    The set of rights (ACLs) the user has in relation to this
-    node.  A **FilesRights** object has the following properties:
+    The set of rights the user has on this node.  A **FilesRights** object has the following properties:
 
     * mayRead: `Boolean` The user may read all properties and
       the blob content of this node.  Without it, some properties
       are still visible (see "Access Control").
     * mayAddChildren: `Boolean` The user may create child nodes
       in this directory, or move nodes into it.
-    * mayRename: `Boolean` The user may rename or move this node.
+    * mayRename: `Boolean` The user may rename or move this node,
+      or change its `role`.
     * mayDelete: `Boolean` The user may destroy this node.
     * mayModifyContent: `Boolean` The user may update the
       content-related properties of this node (`blobId`, `mediaType`,
-      `target`, `modified`, `accessed`, `executable`).
+      `target`, `created`, `modified`, `accessed`, `executable`).
     * mayShare: `Boolean` The user may change the sharing of this
       node (see {{JMAP-SHARING}}).
 
@@ -385,9 +376,9 @@ following properties:
 
     The media type of the file.  If not provided on creation,
     or if set to null, the server sets it to
-    "application/octet-stream".  Valid values are found in the
-    IANA media-types registry.  Servers MUST NOT reject media
-    types that are not recognized.  Servers MUST reject media
+    "application/octet-stream".  Values are normally those
+    registered in the IANA media-types registry, but servers MUST
+    NOT reject media types that are not recognized.  Servers MUST reject media
     types if the value does not conform to the ABNF of
     {{Section 4.2 of MEDIATYPE}}.
 
@@ -423,12 +414,6 @@ has the following property:
     example, a role that it manages itself, such as "root" or
     "trash", or a role that it allows only on a top-level
     Directory or within a limited depth of the tree.
-
-    The restrictions on a Directory with a role (see "Access
-    Control") protect it from clients that do not understand
-    roles; they are not access control.  Once its role is
-    cleared, the Directory can be destroyed, renamed or moved
-    like any other.
 
 ### SymLink Properties
 
@@ -508,25 +493,22 @@ There is one additional request argument:
 * fetchParents: "Boolean" (default: false)
 
     If true, the server returns all ancestor nodes of the
-    requested ids in addition to the requested nodes themselves.
-    This allows a client to reconstruct the full path to each
-    requested node in a single call.  Ancestor nodes that have
-    already been included (either because they were explicitly
-    requested or because they are ancestors of multiple requested
-    nodes) are not duplicated.  The ancestors are returned as
-    additional entries in the `list` array.
+    requested ids, as additional entries in the `list` array.
+    Each node appears in the list only once.
 
 ### FileNode/changes
 
-This is a standard Foo/changes method.
+This is a standard Foo/changes method.  A node can be reported as
+changed without any change to its own properties: see `changed`
+for per-user properties, and "Access Control" for changes to a
+node's rights or discoverability.
 
 ### FileNode/set
 
 This is a standard Foo/set method, with the following differences:
 
-Since parentId creates a tree structure, an attempt to move a node
-to a parent for which this node is also an ancestor is rejected
-with an "invalidProperties" error.
+An attempt to move a node beneath itself is rejected with an
+"invalidProperties" error.
 
 Within a single FileNode/set, the server MUST check the uniqueness
 of sibling names against the result of all its creates, updates
@@ -556,7 +538,8 @@ There are these additional top-level arguments:
     "alreadyExists" error.
 
     If "replace", the server destroys the existing node, and MUST
-    include its id in the "destroyed" list of the response.  A node
+    include its id, and the ids of any descendants destroyed with
+    it, in the "destroyed" list of the response.  A node
     of any `@type` may replace a node of any other `@type`.
 
     If "rename", the server changes the "name" property so that it
@@ -598,9 +581,7 @@ There are these additional top-level arguments:
     If true, name collision checks (including `onExists` handling)
     treat names as case-insensitive for this request.  This has no
     effect if the server already has `caseInsensitiveNames` set to
-    true in its capability.  This allows clients syncing to
-    case-insensitive platforms to prevent name collisions that
-    would be problematic on those platforms.
+    true in its capability.  See "Case Sensitivity" for its use.
 
 Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
 
@@ -612,8 +593,8 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
   the user cannot discover; an onExists replacement without the
   required rights on the existing node (see onExists above); a
   destroy that would remove nodes the user cannot discover; a
-  rename, move or destroy without the rights it needs, or of a
-  Directory with a role; a change to a role that server policy
+  rename, move, role change or destroy without the rights it
+  needs, or a rename, move or destroy of a Directory with a role; a change to a role that server policy
   does not allow; or a create or move to the top level
   without `mayCreateTopLevelFileNode` (see "Access Control").
 * "invalidProperties" — among other cases: an attempt to move a
@@ -622,8 +603,9 @@ Errors (in addition to standard SetError codes from {{JMAP-CORE}}):
   children, to change the `@type` of a node, to set a property
   that is not defined for the node's `@type` to a non-null value,
   to give a Directory a role that another Directory in the
-  account already has, or a create or move that would place the
-  node, or any of its descendants, deeper than `maxFileNodeDepth`.
+  account already has, or a create or move that would give the
+  node, or any of its descendants, more ancestors than
+  `maxFileNodeDepth` allows.
 * "nodeHasChildren" — a destroy or onExists replacement of a
   FileNode that has children, with onDestroyRemoveChildren false.
 
@@ -640,27 +622,29 @@ It has the same `created`, `modified` and `accessed` values as its
 original, unless the client gives others.  For a File, the server
 copies the content of its blob into the destination account; the
 blob need not already exist there, and the new `blobId` may
-differ.  As with extracting an archive, `shareWith` is not
-copied, even within one account, and per-user properties, such as
-`isSubscribed`, take their default values.
+differ.  `shareWith` and `role` are not copied, even within one
+account: the copy takes its rights from its new parent, and
+`isSubscribed` takes its default value.  `metadata` and
+`privateMetadata` are copied as {{JMAP-METADATA}} describes.
 
-Copying a Directory copies its whole subtree.  The result is as if
-the server archived the Directory's contents (with `recurse`; see
-"Integration with JMAP Blob Extensions") and extracted them into
-the new Directory: each descendant is copied, with the same name
-and timestamps, beneath the copy of its parent.  The copy of a
-Directory and all its descendants succeeds or fails as a whole.
-The response gives only the id of the new Directory; a client
-that wants the ids of the new descendants finds them with
-FileNode/query, using an `ancestorId` condition with that id.
+Copying a Directory copies its whole subtree: each descendant is
+copied, by the rules above and with the same name, beneath the
+copy of its parent.  The copy
+of a Directory and all its descendants succeeds or fails as a
+whole; if the destination cannot hold any descendant (for example,
+a SymLink where "SymLink" is not in `supportedNodeTypes`), the
+copy fails.
+
+Copying a node requires `mayRead` on it and `mayAddChildren` on
+the destination parent (or `mayCreateTopLevelFileNode`).
+The response gives only the id of the new Directory; FileNode/query
+with an `ancestorId` condition finds the copied descendants.
 
 If onSuccessDestroyOriginal is true, the implicit FileNode/set
 call that destroys the originals ({{Section 5.4 of JMAP-CORE}})
-has onDestroyRemoveChildren true, since the descendants were
-copied too.  The copy and the destroy are not atomic.  A client
-that must not lose a node added to the tree in between passes
-destroyFromIfInState, so that the destroy fails if the source
-account has changed.
+has onDestroyRemoveChildren true.  A client that must not lose a
+node added to the tree between the copy and the destroy passes
+destroyFromIfInState.
 
 Unlike other Foo/copy methods ({{Section 5.4 of JMAP-CORE}}),
 FileNode/copy allows `accountId` to be the same as
@@ -881,12 +865,13 @@ not exist, or that the user cannot discover, MUST be rejected with
 
 The user MUST have `mayModifyContent` on the node, which for a File
 is in its parent's `myRights` (see "Access Control").  Requests
-without it MUST be rejected with 403 (Forbidden).  Authentication uses the same mechanism as other
-JMAP HTTP endpoints.
+without it MUST be rejected with 403 (Forbidden).  Authentication
+uses the same mechanism as other JMAP HTTP endpoints.
 
 A request that would take the account over its quota (see
 "Quotas") MUST be rejected with 507 (Insufficient Storage)
-({{Section 11.5 of WEBDAV}}), and the server MUST NOT change the
+({{Section 11.5 of WEBDAV}}).  Whenever the server rejects a
+request, with this or any other status, it MUST NOT change the
 node.
 
 ## Preventing Lost Updates
@@ -898,17 +883,14 @@ an ETag header field with the new entity tag in the response to a
 PUT or PATCH.  The server can use any value with the properties of
 a strong entity tag.  It is RECOMMENDED that the server use the
 node's current `blobId` as the opaque value (for example,
-`"Bfa61c0"` for a node with `blobId` "Bfa61c0"), so that a client
-can form the entity tag from a `blobId` it learned from
-FileNode/get, without an earlier write.
+`"Bfa61c0"` for a node with `blobId` "Bfa61c0"), so that clients
+can form it from FileNode/get.
 
 The server MUST support If-Match ({{Section 13.1.1 of HTTP}}) on
 PUT and PATCH.  If the condition is false, the server MUST respond
-with 412 (Precondition Failed) and MUST NOT change the node.  A client
-SHOULD send If-Match on every PATCH, since a delta applied to
-content other than the content it was computed from produces
-corrupt data.  A client SHOULD send If-Match on a PUT unless it
-intends to overwrite whatever content the node has.
+with 412 (Precondition Failed).  A client
+SHOULD send If-Match on every PATCH, and on a PUT unless it intends
+to overwrite whatever content the node has.
 
 ## PUT
 
@@ -919,8 +901,7 @@ server does not store any parameters (such as "charset").  If the
 request has no Content-Type header field, the server sets
 `mediaType` to "application/octet-stream".  If the Content-Type
 header field does not conform to the ABNF of {{Section 8.3 of
-HTTP}}, the server MUST respond with 400 (Bad Request) and MUST
-NOT change the node.
+HTTP}}, the server MUST respond with 400 (Bad Request).
 
 On success, the server MUST update the node's `blobId`, `size`,
 and `mediaType` properties, and set `modified` to the current
@@ -966,7 +947,7 @@ Errors in applying a patch are handled as described in
 respond with 415 (Unsupported Media Type) for a patch format it
 does not support, 400 (Bad Request) for a malformed patch, and 409
 (Conflict) for a patch that cannot be applied to the node's current
-content.  In each case the server MUST NOT change the node.
+content.
 
 ## Integrity
 
@@ -974,9 +955,9 @@ A PUT or PATCH request MAY carry `Repr-Digest` or `Content-Digest`
 header fields {{DIGEST-FIELDS}} for the data it sends: for PUT, the
 new content of the node; for PATCH, the patch.  The server MUST
 verify each digest whose algorithm it supports.  If any does not
-match, the server MUST respond with 400 (Bad Request) and MUST NOT
-change the node.  As {{DIGEST-FIELDS}} describes, a digest whose algorithm
-the server does not support is ignored.  The algorithms a server
+match, the server MUST respond with 400 (Bad Request).  As
+{{DIGEST-FIELDS}} describes, a digest whose algorithm the server
+does not support is ignored.  The algorithms a server
 supports are those in the `supportedDigestAlgorithms` capability of
 {{JMAP-BLOBEXT}}, which lists them in the server's order of
 preference; clients SHOULD use the first one they support.
@@ -989,9 +970,7 @@ include a member named "digest:" followed by the algorithm name
 the base64-encoded digest of the node's new content, as Blob/get
 does in {{JMAP-BLOBEXT}}.  The digest is in the body because any
 digest header fields on the response describe the response body
-itself, not the node.  This lets a client confirm the result of a
-PATCH, or of a PUT whose digest it did not send, without a further
-request.
+itself, not the node.
 
 ~~~json
 {
@@ -1018,36 +997,6 @@ The user's rights on it are those in its parent's `myRights`;
 with a null parentId is discoverable only by the account owner,
 who has all rights on it.
 
-To rename or move a node the server checks `mayRename`, and to
-destroy it `mayDelete`, in the rights of the node itself; for a
-node with no `myRights`, these are its parent's rights.  Moving a
-node also requires `mayAddChildren` on the new parent, or
-`mayCreateTopLevelFileNode` to move it to the top level.  Without
-these rights, the operation fails with "forbidden".
-
-A Directory with a role cannot be destroyed, renamed or moved; the
-server rejects any attempt with "forbidden".  This does not change
-the rights it reports in `myRights`, which its children with no
-`myRights` of their own take as theirs: files in a directory with
-the "trash" role, for example, can still be destroyed.  A client
-that needs to destroy, rename or move such a Directory first clears
-its role (see "role" in "Directory Properties").
-
-A node's rights can change without any change to the node
-itself: through a change to `shareWith` on an ancestor, or when
-the node or an ancestor moves to a parent whose inherited rights
-differ.  The server MUST report every node whose rights for a user
-changed as changed in FileNode/changes for that user, including
-nodes that have no `myRights` of their own and take their rights
-from their parent.  A client therefore learns the new rights of
-everything in the subtree from FileNode/changes alone, without
-working out which nodes are affected itself.
-
-Otherwise, moving or renaming a node changes only that node.  Its
-descendants keep all their properties (their path is not a
-property), so the server does not report them in FileNode/changes
-unless their rights changed.
-
 Nodes which are not "discoverable" MUST be reported in `notFound`
 if fetched with FileNode/get and MUST NOT be returned in response to
 FileNode/query.  Nodes are discoverable in one of two ways:
@@ -1057,16 +1006,9 @@ FileNode/query.  Nodes are discoverable in one of two ways:
 2. If the node or a descendant of the node has a `shareWith`
    entry that grants the user any right.
 
-When a node stops being discoverable by the user, for example
-because a `shareWith` entry was removed, the server reports it as
-destroyed in FileNode/changes.
-
 A node that is discoverable only through the second rule has
-mayRead false.  It is visible so that the user can use the
-rights granted on it, and can see the full path to the nodes
-they have access to.  This means that a query with that node as
-the parent will only return those of its children which are
-otherwise discoverable through the second discoverability rule.
+mayRead false.  A query with that node as the parent returns only
+those of its children that are themselves discoverable.
 
 For a node that is discoverable but does not have `mayRead`,
 FileNode/get returns the real values of `id`, `@type`, `name`,
@@ -1109,6 +1051,39 @@ her "forBob" directory, Bob might see:
 ~~~
 
 Alice sees many more files and directories under "/home".
+
+To rename or move a node, or change its role, the server checks
+`mayRename`, and to destroy it `mayDelete`, in the rights of the node itself; for a
+node with no `myRights`, these are its parent's rights.  Moving a
+node also requires `mayAddChildren` on the new parent, or
+`mayCreateTopLevelFileNode` to move it to the top level.  Without
+these rights, the operation fails with "forbidden".
+
+A Directory with a role cannot be destroyed, renamed or moved; the
+server rejects any attempt with "forbidden".  This does not change
+the rights it reports in `myRights`, which its children with no
+`myRights` of their own take as theirs: files in a directory with
+the "trash" role, for example, can still be destroyed.  A client
+that needs to destroy, rename or move such a Directory first clears
+its role (see "role" in "Directory Properties").
+
+A node's rights can change without any change to the node
+itself: through a change to `shareWith` on an ancestor, or when
+the node or an ancestor moves to a parent whose inherited rights
+differ.  The server MUST report every node whose rights for a user
+changed as changed in FileNode/changes for that user, including
+nodes that have no `myRights` of their own and take their rights
+from their parent.
+
+Otherwise, moving or renaming a node changes only that node.  Its
+descendants keep all their properties (their path is not a
+property), so the server does not report them in FileNode/changes
+unless their rights changed.
+
+When a node stops being discoverable by the user, for example
+because a `shareWith` entry was removed or the node was moved out
+of a shared Directory, the server reports it as destroyed in
+FileNode/changes.
 
 Sharing can make large changes to the set of nodes a user can see:
 when Alice first shared that directory, Bob would have been told
@@ -1270,14 +1245,14 @@ additional properties:
     FileNode equivalent ("hardlink", "fifo", "blockDevice", and
     "charDevice").  The server splits each entry's name on "/" into
     path components.  It treats every name as relative to
-    `parentNodeId`, as common archive tools do: it ignores any
+    `parentNodeId`: it ignores any
     leading "/" and the trailing "/" of a directory entry, and
     drops any "." component, so "/docs/", "./docs/" and "docs/" all
     name the same directory.  An entry is also unsupported if its
     name contains a ".." component or an empty component (as in
     "docs//readme.txt"), or would produce a name or depth that the
-    server would reject in FileNode/set.  The `onUnsupportedEntry` property controls how
-    the server handles them.
+    server would reject in FileNode/set.  The `onUnsupportedEntry`
+    property controls how the server handles them.
 
 * onUnsupportedEntry: "String" (default: "error")
 
@@ -1300,8 +1275,7 @@ additional properties:
 
     A directory entry that collides with an existing Directory
     the user can discover does not use `onExists`: the server
-    merges the entry into the existing Directory, as common
-    archive tools do.  It creates no new node for that entry,
+    merges the entry into the existing Directory.  It creates no new node for that entry,
     leaves the existing Directory's properties unchanged, and
     extracts the entries beneath it into the existing Directory,
     where their own collisions are handled in the same way.
@@ -1413,9 +1387,7 @@ attributes on FileNodes lists "FileNode" in the "dataTypes" of its
 `urn:ietf:params:jmap:metadata` capability.  Clients then read and write the
 attributes through the "metadata" property, and through the "privateMetadata"
 property where the server sets `supportsPrivate`.  That extension adds both
-properties to the FileNode object.  They are common properties, available on
-FileNodes of every `@type`, because platforms also attach named attributes to
-directories and symbolic links.
+properties to the FileNode object, on FileNodes of every `@type`.
 
 ## The "xattr" Namespace
 
@@ -1492,10 +1464,8 @@ preserving timestamps can set `modified` to null to have the server
 use the current time.
 
 Renaming or moving a node does not change its `modified` time, as
-on common local filesystems.  The server MUST NOT change `modified`
-for an update that does not include it, and a client SHOULD NOT
-include `modified` in an update that only renames or moves a node
-unless it intends to change it (for example by setting it to null).
+on common local filesystems.  A client SHOULD NOT include
+`modified` in an update that only renames or moves a node.
 
 Clients may also choose to update the `modified` timestamp on a
 parent directory when moving a child node in or out, to reflect
@@ -1597,9 +1567,10 @@ Deep nesting of FileNodes or very large numbers of children under a
 single parent can consume significant server resources.  Servers
 SHOULD enforce reasonable limits via `maxFileNodeDepth` and MAY
 impose additional limits on the number of children per node.
-Recursive operations such as destroying a subtree with
-`onDestroyRemoveChildren` can be expensive; servers SHOULD impose
-limits on the size of subtrees that can be destroyed in a single
+Recursive operations, such as destroying a subtree with
+`onDestroyRemoveChildren` or copying a Directory with
+FileNode/copy, can be expensive; servers SHOULD impose limits on
+the size of subtrees that can be destroyed or copied in a single
 operation.
 
 ## Access Control
@@ -1618,11 +1589,13 @@ onDestroyRemoveChildren is true.  Any failure reveals this.
 The alternatives would be to reveal the ids of the hidden nodes,
 or to destroy data the user cannot see, and both are worse.
 
-Changes to the `shareWith` property on a node affect all descendants.
-Removing sharing from a parent node will make its descendants
-undiscoverable to the affected users, unless a descendant is
-also shared with them directly, which may be surprising if
-those users had been actively working with the shared files.
+Changes to the `shareWith` property on a node affect all
+descendants, and so does moving a node to a parent that is shared
+differently.  Removing sharing from a parent node, or moving a
+subtree out of a shared Directory, makes those nodes
+undiscoverable to the affected users, unless a descendant is also
+shared with them directly, which may be surprising if those users
+had been actively working with the shared files.
 
 ## Extended Attributes
 
@@ -1804,11 +1777,14 @@ The source of this document exists on github at: https://github.com/brong/draft-
   manages itself or one allowed only at the top level.  Clearing a role
   lifts the restrictions on destroying, renaming and moving the
   Directory.  (Thanks to Mark Atwood.)
-* FileNode/copy of a Directory copies its whole subtree, as a
-  whole or not at all, as if archived and extracted into the new
-  Directory.  File content is copied into the destination account,
-  `shareWith` is not copied, and per-user properties take their
-  defaults.  The implicit destroy for onSuccessDestroyOriginal
+* FileNode/copy of a Directory copies its whole subtree without
+  loss, as a whole or not at all, much as if archived and extracted
+  into the new Directory.  File content is copied into the
+  destination account; `shareWith` and `role` are not copied;
+  `isSubscribed` takes its default; and `metadata` and
+  `privateMetadata` are copied as {{JMAP-METADATA}} describes.
+  Copying requires `mayRead` on the original and `mayAddChildren`
+  on the destination parent.  The implicit destroy for onSuccessDestroyOriginal
   removes the descendants too; destroyFromIfInState guards against
   changes in between.  FileNode/copy may copy within one account,
   relaxing the RFC 8620 rule that the accounts differ.  (Thanks to
@@ -1816,6 +1792,21 @@ The source of this document exists on github at: https://github.com/brong/draft-
 * Moving a node reports its descendants in FileNode/changes only
   when their inherited rights change, under the same rule as a
   `shareWith` change on an ancestor.
+* `maxFileNodeDepth` is defined in terms of ancestors, and its
+  relation to the query `depth` argument (which counts from 0) is
+  stated.
+* `mayRename` covers changing a Directory's `role`.
+* `created` follows the same rules as `modified`, and is settable
+  with `mayModifyContent`.
+* "replace" through onExists lists destroyed descendants in
+  "destroyed".
+* `modified` and `accessed` have type "UTCDate", like `created`;
+  setting them to null still sets the current server time.
+* Editorial: Access Control defines discoverability before the rules
+  that use it; Direct HTTP Write states once that a rejected request
+  changes nothing; removed restated requirements; FileNode/changes
+  points to the rules that report nodes without property changes;
+  Security Considerations cover moves and recursive copies.
 * Direct HTTP Write returns a strong entity tag in ETag (the
   `blobId` is recommended), and honors If-Match with 412
   (Precondition Failed); clients SHOULD send If-Match on PATCH.  Defined the
